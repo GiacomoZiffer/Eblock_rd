@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module(Eblock_rd_sup).
+-module(eblock_rd_sup).
 
 -behaviour(supervisor).
 

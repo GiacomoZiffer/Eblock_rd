@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module(Eblock_rd_app).
+-module(eblock_rd_app).
 
 -behaviour(application).
 
@@ -15,7 +15,7 @@
 %%====================================================================
 
 start(_StartType, _StartArgs) ->
-    Eblock_rd_sup:start_link().
+    eblock_rd_sup:start_link().
 
 %%--------------------------------------------------------------------
 stop(_State) ->
