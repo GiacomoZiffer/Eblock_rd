@@ -1,8 +1,8 @@
-{application, Eblock_rd,
+{application, eblock_rd,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {Eblock_rd_app, []}},
+  {mod, {eblock_rd_app, []}},
   {applications,
    [kernel,
     stdlib
