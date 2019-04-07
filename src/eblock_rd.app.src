@@ -1,16 +1,16 @@
 {application, eblock_rd,
- [{description, "An OTP application"},
-  {vsn, "0.1.0"},
-  {registered, []},
-  {mod, {eblock_rd_app, []}},
-  {applications,
-   [kernel,
-    stdlib,
-    echo_rd
-   ]},
-  {env,[]},
-  {modules, []},
+  [{description, "An OTP application"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {eblock_rd_app, []}},
+    {applications,
+      [kernel,
+        stdlib,
+        echo_rd
+      ]},
+    {env,[]},
+    {modules, []},
 
-  {licenses, ["Apache 2.0"]},
-  {links, []}
- ]}.
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+  ]}.
