@@ -56,6 +56,8 @@ start_link() ->
   ignore |
   {error, Reason :: term()}).
 init([]) ->
+  block_naming_mng:wait_for_handler(),
+
   RestartStrategy = rest_for_one,
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,

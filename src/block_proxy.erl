@@ -60,6 +60,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
+  self() ! startup,
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -108,6 +109,11 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_info(startup, _State) ->
+  naming_handler:wait_service(application_manager),
+  block_naming_hnd:notify_identity(self(), proxy),
+  {noreply, #state{}};
+
 handle_info(_Info, State) ->
   {noreply, State}.
 

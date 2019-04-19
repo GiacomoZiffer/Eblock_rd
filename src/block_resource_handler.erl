@@ -12,7 +12,10 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+  add/1,
+  get/1,
+  delete/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -41,6 +44,18 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+add(Res) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {add, Res}).
+
+get(ID) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {get, ID}).
+
+delete(ID) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {delete, ID}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -60,6 +75,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
+  block_naming_hnd:notify_identity(self(), resource_handler),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -77,6 +93,22 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_call({add, Resource}, _From, State) ->
+  {ok, Data} = file:read_file(Resource),
+  io:format("The size is:~p~n", [byte_size(Data)]),
+  [Name] = tl(string:split(Resource, "/", trailing)),
+  {ok, Fd} = file:open("Resources/" ++ Name, [write]),
+  file:write(Fd, Data),
+  {reply, ok, State};
+
+handle_call({get, ID}, _From, State) ->
+  {ok, Data} = file:read_file("Resources/" ++ ID),
+  {reply, Data, State};
+
+handle_call({delete, ID}, _From, State) ->
+  ok = file:delete("Resources/" ++ ID),
+  {reply, ok, State};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 

@@ -12,7 +12,15 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+  start/0,
+  start/1,
+  leave/0,
+  add/1,
+  get_res/1,
+  delete/1,
+  update/1,
+  pop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -41,6 +49,35 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+start() ->
+  application_manager:create(8).
+
+start(Address) ->
+  application_manager:join(Address).
+
+leave() ->
+  application_manager:leave().
+
+add(Res) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {add, Res}).
+
+get_res(ID) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {get, ID}).
+
+delete(ID) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {delete, ID}).
+
+update(ID) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {update, ID}).
+
+pop(ID) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {pop, ID}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -60,6 +97,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
+  block_naming_hnd:notify_identity(self(), filter),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
