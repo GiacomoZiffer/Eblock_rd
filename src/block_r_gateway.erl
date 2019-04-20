@@ -1,23 +1,12 @@
-%%%-------------------------------------------------------------------
-%%% @author Giacomo
-%%% @copyright (C) 2019, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 13. Apr 2019 19:45
-%%%-------------------------------------------------------------------
--module(block_resource_handler).
+-module(block_r_gateway).
 -author("Giacomo").
 
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0,
-  add/2,
-  get/1,
-  delete/1,
-  get_name/1,
-  get_data/1]).
+  add_request/3,
+  send_response/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -29,7 +18,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {requests}).
 
 %%%===================================================================
 %%% API
@@ -41,30 +30,16 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-add(Name, Data) ->
-  PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {add, Name, Data}).
+add_request(Requested, From, Method) ->
+  PID = block_naming_hnd:get_identity(block_r_gateway),
+  gen_server:call(PID, {add, Requested, From, Method}).
 
-get(Name) ->
-  PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {get, Name}).
-
-delete(Name) ->
-  PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {delete, Name}).
-
-get_name(Path) ->
-  [Name] = tl(string:split(Path, "/", trailing)),
-  Name.
-
-get_data(Path) ->
-  {ok, Data} = file:read_file(Path),
-  Data.
+send_response(Params, Method) ->
+  PID = block_naming_hnd:get_identity(block_r_gateway),
+  gen_server:cast(PID, {response, Params, Method}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -81,11 +56,8 @@ get_data(Path) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term()} | ignore).
 init([]) ->
-  block_naming_hnd:notify_identity(self(), resource_handler),
+  self() ! startup,
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -95,31 +67,20 @@ init([]) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
-    State :: #state{}) ->
-  {reply, Reply :: term(), NewState :: #state{}} |
-  {reply, Reply :: term(), NewState :: #state{}, timeout() | hibernate} |
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
-  {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({add, Name, Data}, _From, State) ->
-  %Data = get_data(Path),
-  io:format("The size is:~p~n", [byte_size(Data)]),
-  %Name = get_name(Path),
-  {ok, Fd} = file:open("Resources/" ++ Name, [write]),
-  file:write(Fd, Data),
-  {reply, ok, State};
+handle_call({add, Requested, From, Method}, _From, State) ->
+  Sup = block_naming_hnd:get_identity(block_r_sup),
+  Ret = supervisor:start_child(Sup, [Requested, From, Method]),
+  case Ret of
+    {ok, PID} ->
+      Monitor = erlang:monitor(process, PID),
+      {reply, ok, #state{requests = [{PID, Requested, Method, Monitor} | State#state.requests]}};
+    {ok, PID, _} ->
+      Monitor = erlang:monitor(process, PID),
+      {reply, ok, #state{requests = [{PID, Requested, Method, Monitor} | State#state.requests]}}
+  end;
 
-handle_call({get, Name}, _From, State) ->
-  {ok, Data} = file:read_file("Resources/" ++ Name),
-  {reply, Data, State};
-
-handle_call({delete, Name}, _From, State) ->
-  ok = file:delete("Resources/" ++ Name),
-  {reply, ok, State};
-
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+  io:format("BLOCK GATEWAY: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -129,11 +90,13 @@ handle_call(_Request, _From, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_cast(Request :: term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(_Request, State) ->
+handle_cast({response, Params, ask_res}, State) ->
+  {Name, _} = Params,
+  [block_request:respond(PID, Params, ask_res) || {PID, R, M, _} <- State#state.requests, R =:= Name, M =:= ask_res],
+  {noreply, State};
+
+handle_cast(Request, State) ->
+  io:format("BLOCK GATEWAY: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -146,11 +109,20 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(_Info, State) ->
+handle_info(startup, _State) ->
+  block_naming_hnd:notify_identity(self(), block_r_gateway),
+  {noreply, #state{requests = []}};
+
+handle_info({'DOWN', Monitor, process, _PID, normal}, State) ->
+  {noreply, #state{requests = [{PID, Req, Meth, Mon} || {PID, Req, Meth, Mon} <- State#state.requests, Mon =/= Monitor]}};
+
+handle_info({'DOWN', Monitor, process, _PID, Reason}, State) ->
+  Present = [X || {_, X, _, M} <- State#state.requests, M =:= Monitor],
+  io:format("BLOCK GATEWAY: A request failed: Requested: ~p~nReason: ~p~n", [hd(Present), Reason]),
+  {noreply, #state{requests = [{PID, Req, Meth, Mon} || {PID, Req, Meth, Mon} <- State#state.requests, Mon =/= Monitor]}};
+
+handle_info(Info, State) ->
+  io:format("BLOCK GATEWAY: Unexpected ! message: ~p~n", [Info]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -164,8 +136,6 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
   ok.
 
@@ -177,9 +147,6 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
--spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
-    Extra :: term()) ->
-  {ok, NewState :: #state{}} | {error, Reason :: term()}).
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 

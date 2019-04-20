@@ -22,7 +22,7 @@
   delete/1,
   update/1,
   pop/1,
-  receive_command/1,
+  receive_command/2,
   add_many_resources/1,
   get_local_resources/0,
   drop_many_resources/1,
@@ -91,9 +91,9 @@ pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {pop, Name}).
 
-receive_command(Command) ->
+receive_command(From, Command) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {rcv_command, Command}).
+  gen_server:call(PID, {rcv_command, From, Command}).
 
 add_many_resources(Resources) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -144,36 +144,58 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({add, Path}, _From, State) ->
+handle_call({add, Path}, From, State) ->
   Name = block_resource_handler:get_name(Path),
   Data = block_resource_handler:get_data(Path),
   Command = encode_command(add, Name, Data),
-  application_manager:issue_command(Name, Command),
-  {reply, ok, State};
+  Res = application_manager:issue_command(Name, Command),
+  case Res of
+    out_of_network ->
+      {reply, fail, State};
+    _ ->
+      {reply, ok, State}
+  end;
 
-handle_call({ask_res, Name}, _From, State) ->
+handle_call({ask_res, Name}, From, State) ->
   Command = encode_command(ask_res, Name, no_data),
-  application_manager:issue_command(Name, Command),
-  {reply, ok, State};
+  Res = application_manager:issue_command(Name, Command),
+  case Res of
+    out_of_network ->
+      {reply, fail, State};
+    _ ->
+      block_r_gateway:add_request(Name, From, ask_res),
+      {noreply, State}
+  end;
 
 handle_call({res_reply, Name, Data}, _From, State) ->
   Command = encode_command(res_reply, Name, Data),
-  application_manager:issue_command(Name, Command),
-  {reply, ok, State};
+  Res = application_manager:issue_command(Name, Command),
+  case Res of
+    out_of_network ->
+      {reply, fail, State};
+    _ ->
+      {reply, ok, State}
+  end;
 
 handle_call({delete, Name}, _From, State) ->
   Command = encode_command(delete, Name, no_data),
-  application_manager:issue_command(Name, Command),
-  {reply, ok, State};
+  Res = application_manager:issue_command(Name, Command),
+  case Res of
+    out_of_network ->
+      {reply, fail, State};
+    _ ->
+      {reply, ok, State}
+  end;
 
-handle_call({rcv_command, Command}, _From, State) ->
+handle_call({rcv_command, From, Command}, _From, State) ->
   <<NumComm:8/integer, Msg/binary>> = Command,
   Comm = translate(NumComm),
   Params = decode_command(Comm, Msg),
-  handle_msg(Comm, Params),
+  handle_msg(Comm, From, Params),
   {reply, ok, State};
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+  io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -187,7 +209,8 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(_Request, State) ->
+handle_cast(Request, State) ->
+  io:format("BLOCK FILTER: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -210,7 +233,8 @@ handle_info(startup, State) ->
   application_manager:connect(?MODULE),
   {noreply, State};
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+  io:format("BLOCK FILTER: Unexpected ! message: ~p~n", [Info]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -282,16 +306,17 @@ decode_command(res_reply, Msg) ->
 decode_command(delete, Msg) ->
   binary_to_list(Msg).
 
-handle_msg(add, Params) ->
-  block_resource_handler:add(Params);
+handle_msg(add, _From, Params) ->
+  {Name, Data} = Params,
+  block_resource_handler:add(Name, Data);
 
-handle_msg(ask_res, Name) ->
+handle_msg(ask_res, From, Name) ->
   Data = block_resource_handler:get(Name);      %%TODO send message back with name and data
 
-handle_msg(res_reply, Params) ->
-  ok;
+handle_msg(res_reply, _From, Params) ->
+  block_r_gateway:send_response(Params, ask_res);
 
-handle_msg(delete, Name) ->
+handle_msg(delete, From, Name) ->
   block_resource_handler:delete(Name).
 
 translate(1) -> add;

@@ -1,12 +1,4 @@
-%%%-------------------------------------------------------------------
-%%% @author Giacomo
-%%% @copyright (C) 2019, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 13. Apr 2019 19:47
-%%%-------------------------------------------------------------------
--module(block_filter_sup).
+-module(block_r_sup).
 -author("Giacomo").
 
 -behaviour(supervisor).
@@ -29,8 +21,6 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -48,30 +38,23 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-  {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-    MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
-    [ChildSpec :: supervisor:child_spec()]
-  }} |
-  ignore |
-  {error, Reason :: term()}).
 init([]) ->
-  RestartStrategy = rest_for_one,
+  block_naming_hnd:notify_identity(self(), block_r_sup),
+
+  RestartStrategy = simple_one_for_one,
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,
 
   SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-  Son1 = {block_proxy, {block_proxy, start_link, []},
-    permanent, 2000, worker, [block_proxy]},
-  Son2 = {block_filter, {block_filter, start_link, []},
-    permanent, 2000, worker, [block_filter]},
-  Son3 = {block_r_gateway, {block_r_gateway, start_link, []},
-    permanent, 2000, worker, [block_r_gateway]},
-  Son4 = {block_r_sup, {block_r_sup, start_link, []},
-    permanent, 2000, supervisor, [block_r_sup]},
+  Restart = temporary,
+  Shutdown = 2000,
+  Type = worker,
 
-  {ok, {SupFlags, [Son1, Son2, Son3, Son4]}}.
+  AChild = {block_request, {block_request, start_link, []},
+    Restart, Shutdown, Type, [block_request]},
+
+  {ok, {SupFlags, [AChild]}}.
 
 %%%===================================================================
 %%% Internal functions
