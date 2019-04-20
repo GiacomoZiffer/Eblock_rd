@@ -10,6 +10,7 @@
 -author("Giacomo").
 
 -behaviour(gen_server).
+-behaviour(gen_bm).
 
 %% API
 -export([start_link/0,
@@ -20,7 +21,15 @@
   get_res/1,
   delete/1,
   update/1,
-  pop/1]).
+  pop/1,
+  receive_command/1,
+  add_many_resources/1,
+  get_local_resources/0,
+  drop_many_resources/1,
+  res_reply/2]).
+
+%%TODO remove this export
+-export([encode_command/3, decode_command/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -58,25 +67,45 @@ start(Address) ->
 leave() ->
   application_manager:leave().
 
-add(Res) ->
+add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {add, Res}).
+  gen_server:call(PID, {add, Path}).
 
-get_res(ID) ->
+get_res(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {get, ID}).
+  gen_server:call(PID, {ask_res, Name}).
 
-delete(ID) ->
+res_reply(Name, Data) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {delete, ID}).
+  gen_server:call(PID, {res_reply, Name, Data}).
 
-update(ID) ->
+delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {update, ID}).
+  gen_server:call(PID, {delete, Name}).
 
-pop(ID) ->
+update(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {pop, ID}).
+  gen_server:call(PID, {update, Name}).
+
+pop(Name) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {pop, Name}).
+
+receive_command(Command) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {rcv_command, Command}).
+
+add_many_resources(Resources) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {add_many, Resources}).
+
+get_local_resources() ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, get_all).
+
+drop_many_resources(From) ->
+  PID = block_naming_hnd:get_identity(filter),
+  gen_server:call(PID, {drop, From}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -97,7 +126,7 @@ pop(ID) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  block_naming_hnd:notify_identity(self(), filter),
+  self() ! startup,
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -115,6 +144,35 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_call({add, Path}, _From, State) ->
+  Name = block_resource_handler:get_name(Path),
+  Data = block_resource_handler:get_data(Path),
+  Command = encode_command(add, Name, Data),
+  application_manager:issue_command(Name, Command),
+  {reply, ok, State};
+
+handle_call({ask_res, Name}, _From, State) ->
+  Command = encode_command(ask_res, Name, no_data),
+  application_manager:issue_command(Name, Command),
+  {reply, ok, State};
+
+handle_call({res_reply, Name, Data}, _From, State) ->
+  Command = encode_command(res_reply, Name, Data),
+  application_manager:issue_command(Name, Command),
+  {reply, ok, State};
+
+handle_call({delete, Name}, _From, State) ->
+  Command = encode_command(delete, Name, no_data),
+  application_manager:issue_command(Name, Command),
+  {reply, ok, State};
+
+handle_call({rcv_command, Command}, _From, State) ->
+  <<NumComm:8/integer, Msg/binary>> = Command,
+  Comm = translate(NumComm),
+  Params = decode_command(Comm, Msg),
+  handle_msg(Comm, Params),
+  {reply, ok, State};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -146,6 +204,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_info(startup, State) ->
+  naming_handler:wait_service(application_manager),
+  block_naming_hnd:notify_identity(self(), filter),
+  application_manager:connect(?MODULE),
+  {noreply, State};
+
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -182,3 +246,55 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+encode_command(add, Name, Data) ->
+  BinName = list_to_binary(Name),
+  Length = byte_size(BinName),
+  <<1:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
+
+encode_command(ask_res, Name, no_data) ->
+  BinName = list_to_binary(Name),
+  <<2:8/integer, BinName/binary>>;
+
+encode_command(res_reply, Name, Data) ->
+  BinName = list_to_binary(Name),
+  Length = byte_size(BinName),
+  <<3:8/integer, Length:8/integer, Name:Length/binary, Data/binary>>;
+
+encode_command(delete, Name, no_data) ->
+  BinName = list_to_binary(Name),
+  <<4:8/integer, BinName/binary>>.
+
+decode_command(add, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, Data/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  {Name, Data};
+
+decode_command(ask_res, Msg) ->
+  binary_to_list(Msg);
+
+decode_command(res_reply, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, Data/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  {Name, Data};
+
+decode_command(delete, Msg) ->
+  binary_to_list(Msg).
+
+handle_msg(add, Params) ->
+  block_resource_handler:add(Params);
+
+handle_msg(ask_res, Name) ->
+  Data = block_resource_handler:get(Name);      %%TODO send message back with name and data
+
+handle_msg(res_reply, Params) ->
+  ok;
+
+handle_msg(delete, Name) ->
+  block_resource_handler:delete(Name).
+
+translate(1) -> add;
+translate(2) -> ask_res;
+translate(3) -> res_reply;
+translate(4) -> delete.

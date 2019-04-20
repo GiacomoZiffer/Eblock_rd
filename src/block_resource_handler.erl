@@ -15,7 +15,9 @@
 -export([start_link/0,
   add/1,
   get/1,
-  delete/1]).
+  delete/1,
+  get_name/1,
+  get_data/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -44,17 +46,25 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-add(Res) ->
+add(Path) ->
   PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {add, Res}).
+  gen_server:call(PID, {add, Path}).
 
-get(ID) ->
+get(Name) ->
   PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {get, ID}).
+  gen_server:call(PID, {get, Name}).
 
-delete(ID) ->
+delete(Name) ->
   PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {delete, ID}).
+  gen_server:call(PID, {delete, Name}).
+
+get_name(Path) ->
+  [Name] = tl(string:split(Path, "/", trailing)),
+  Name.
+
+get_data(Path) ->
+  {ok, Data} = file:read_file(Path),
+  Data.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -93,20 +103,20 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({add, Resource}, _From, State) ->
-  {ok, Data} = file:read_file(Resource),
+handle_call({add, Path}, _From, State) ->
+  Data = get_data(Path),
   io:format("The size is:~p~n", [byte_size(Data)]),
-  [Name] = tl(string:split(Resource, "/", trailing)),
+  Name = get_name(Path),
   {ok, Fd} = file:open("Resources/" ++ Name, [write]),
   file:write(Fd, Data),
   {reply, ok, State};
 
-handle_call({get, ID}, _From, State) ->
-  {ok, Data} = file:read_file("Resources/" ++ ID),
+handle_call({get, Name}, _From, State) ->
+  {ok, Data} = file:read_file("Resources/" ++ Name),
   {reply, Data, State};
 
-handle_call({delete, ID}, _From, State) ->
-  ok = file:delete("Resources/" ++ ID),
+handle_call({delete, Name}, _From, State) ->
+  ok = file:delete("Resources/" ++ Name),
   {reply, ok, State};
 
 handle_call(_Request, _From, State) ->
