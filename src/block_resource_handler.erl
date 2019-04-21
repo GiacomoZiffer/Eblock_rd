@@ -107,7 +107,7 @@ handle_call({add, Name, Data}, _From, State) ->
   %Data = get_data(Path),
   io:format("The size is:~p~n", [byte_size(Data)]),
   %Name = get_name(Path),
-  {ok, Fd} = file:open("Resources/" ++ Name, [write]),
+  {ok, Fd} = file:open("Resources/" ++ Name, [write]), %TODO handle all possible error, maybe with try_/catch
   file:write(Fd, Data),
   {reply, ok, State};
 
