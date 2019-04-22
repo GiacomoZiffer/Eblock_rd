@@ -75,7 +75,17 @@ handle_call(Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({response, Params, ask_res}, State) ->
-  gen_server:reply(State#state.from, {found, Params}),
+  gen_server:reply(State#state.from, {ask_res, Params}), %%TODO MANAGE RESULT OF THE OPERATION
+  {stop, normal, State};
+
+handle_cast({response, Params, safe_add}, State) ->
+  {Name, Result} = Params,
+  gen_server:reply(State#state.from, {Result, Name}),   %%TODO MANAGE RESULT OF THE OPERATION
+  {stop, normal, State};
+
+handle_cast({response, Params, safe_delete}, State) ->
+  {Name, Result} = Params,
+  gen_server:reply(State#state.from, {Result, Name}),   %%TODO MANAGE RESULT OF THE OPERATION
   {stop, normal, State};
 
 handle_cast(Request, State) ->

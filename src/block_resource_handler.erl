@@ -13,11 +13,12 @@
 
 %% API
 -export([start_link/0,
-  add/2,
+  add/3,
   get/1,
   delete/1,
   get_name/1,
-  get_data/1]).
+  get_data/1,
+  drop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -29,7 +30,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {resources}).
 
 %%%===================================================================
 %%% API
@@ -46,9 +47,9 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-add(Name, Data) ->
+add(Name, ID, Data) ->
   PID = block_naming_hnd:get_identity(resource_handler),
-  gen_server:call(PID, {add, Name, Data}).
+  gen_server:call(PID, {add, Name, ID, Data}).
 
 get(Name) ->
   PID = block_naming_hnd:get_identity(resource_handler),
@@ -57,6 +58,10 @@ get(Name) ->
 delete(Name) ->
   PID = block_naming_hnd:get_identity(resource_handler),
   gen_server:call(PID, {delete, Name}).
+
+drop(From) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {drop, From}).
 
 get_name(Path) ->
   [Name] = tl(string:split(Path, "/", trailing)),
@@ -86,7 +91,7 @@ get_data(Path) ->
   {stop, Reason :: term()} | ignore).
 init([]) ->
   block_naming_hnd:notify_identity(self(), resource_handler),
-  {ok, #state{}}.
+  {ok, #state{resources = []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -103,21 +108,35 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({add, Name, Data}, _From, State) ->
+handle_call({add, Name, ID, Data}, _From, State) ->
   %Data = get_data(Path),
   io:format("The size is:~p~n", [byte_size(Data)]),
   %Name = get_name(Path),
   {ok, Fd} = file:open("Resources/" ++ Name, [write]), %TODO handle all possible error, maybe with try_/catch
   file:write(Fd, Data),
-  {reply, ok, State};
+  ResList = State#state.resources,
+  NewList = [{Name, ID} | ResList],
+  {reply, ok, State#state{resources = NewList}};
 
 handle_call({get, Name}, _From, State) ->
   {ok, Data} = file:read_file("Resources/" ++ Name),
   {reply, Data, State};
 
 handle_call({delete, Name}, _From, State) ->
-  ok = file:delete("Resources/" ++ Name),
-  {reply, ok, State};
+  ok = file:delete("Resources/" ++ Name),       %TODO handle all possible error, maybe with try_/catch
+  NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
+  {reply, ok, State#state{resources = NewList}};
+
+handle_call({drop, all_res}, _From, State) ->
+  ResList = State#state.resources,
+  [file:delete("Resources/" ++ Name) || {Name, _} <- ResList],
+  {reply, ok, State#state{resources = []}};
+
+handle_call({drop, From}, _From, State) ->
+  ResList = State#state.resources,
+  [file:delete("Resources/" ++ Name) || {Name, ID} <- ResList, ID =< From],
+  NewList = [{N, ID} || {N, ID} <- ResList, ID > From],
+  {reply, ok, State#state{resources = NewList}};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.

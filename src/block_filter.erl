@@ -30,7 +30,7 @@
   safe_delete/1]).
 
 %%TODO remove this export
--export([encode_command/4, decode_command/2]).
+-export([encode_command/3, decode_command/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -152,7 +152,7 @@ init([]) ->
 handle_call({add, Path}, _From, State) ->
   Name = block_resource_handler:get_name(Path),
   Data = block_resource_handler:get_data(Path),
-  Command = encode_command(add, Name, Data, no_addr),
+  Command = encode_command(add, Name, Data),
   Res = application_manager:issue_command(Name, Command),
   case Res of
     out_of_network ->
@@ -164,8 +164,7 @@ handle_call({add, Path}, _From, State) ->
 handle_call({safe_add, Path}, From, State) ->
   Name = block_resource_handler:get_name(Path),
   Data = block_resource_handler:get_data(Path),
-  Address = application_manager:get_own_address(), %TODO check this function
-  Command = encode_command(safe_add, Name, Data, Address),
+  Command = encode_command(safe_add, Name, Data),
   Res = application_manager:issue_command(Name, Command),
   case Res of
     out_of_network ->
@@ -176,8 +175,7 @@ handle_call({safe_add, Path}, From, State) ->
   end;
 
 handle_call({ask_res, Name}, From, State) ->
-  Address = application_manager:get_own_address(), %TODO check this function
-  Command = encode_command(ask_res, Name, no_data, Address),
+  Command = encode_command(ask_res, Name, no_data),
   Res = application_manager:issue_command(Name, Command),
   case Res of
     out_of_network ->
@@ -188,7 +186,7 @@ handle_call({ask_res, Name}, From, State) ->
   end;
 
 handle_call({delete, Name}, _From, State) ->
-  Command = encode_command(delete, Name, no_data, no_addr),
+  Command = encode_command(delete, Name, no_data),
   Res = application_manager:issue_command(Name, Command),
   case Res of
     out_of_network ->
@@ -198,8 +196,7 @@ handle_call({delete, Name}, _From, State) ->
   end;
 
 handle_call({safe_delete, Name}, From, State) ->
-  Address = application_manager:get_own_address(), %TODO check this function
-  Command = encode_command(safe_delete, Name, no_data, Address),
+  Command = encode_command(safe_delete, Name, no_data),
   Res = application_manager:issue_command(Name, Command),
   case Res of
     out_of_network ->
@@ -214,6 +211,14 @@ handle_call({rcv_command, From, Command}, _From, State) ->
   Comm = translate(NumComm),
   Params = decode_command(Comm, Msg),
   handle_msg(Comm, From, Params),
+  {reply, ok, State};
+
+handle_call({add_many, Resources}, _From, State) ->
+  [handle_msg(add, no_addr, Res) || Res <- Resources],
+  {reply, ok, State};
+
+handle_call({drop, From}, _From, State) ->
+  handle_msg(drop, no_addr, From),
   {reply, ok, State};
 
 handle_call(Request, _From, State) ->
@@ -292,47 +297,44 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-encode_command(add, Name, Data, no_addr) ->
+encode_command(add, Name, Data) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   <<1:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
 
-encode_command(safe_add, Name, Data, Address) ->
-  {Port, {IpA, IpB, IpC, IpD}} = Address,
+encode_command(ask_res, Name, no_data) ->
   BinName = list_to_binary(Name),
-  Length = byte_size(BinName),
-  <<5:8/integer, Port:16, IpA:8, IpB:8, IpC:8, IpD:8, Length:8/integer, BinName:Length/binary, Data/binary>>;
+  <<2:8/integer, BinName/binary>>;
 
-encode_command(safe_add_reply, Name, Result, no_addr) ->
-  BinName = list_to_binary(Name),
-  Length = byte_size(BinName),
-  BinRes = list_to_binary(Result),
-  <<8:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>;
-
-encode_command(ask_res, Name, no_data, Address) ->
-  {Port, {IpA, IpB, IpC, IpD}} = Address,
-  BinName = list_to_binary(Name),
-  <<2:8/integer, Port:16, IpA:8, IpB:8, IpC:8, IpD:8, BinName/binary>>;
-
-encode_command(res_reply, Name, Data, no_addr) ->
+encode_command(res_reply, Name, Data) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   <<3:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
 
-encode_command(delete, Name, no_data, no_addr) ->
+encode_command(delete, Name, no_data) ->
   BinName = list_to_binary(Name),
   <<4:8/integer, BinName/binary>>;
 
-encode_command(safe_delete, Name, no_data, Address) ->
-  {Port, {IpA, IpB, IpC, IpD}} = Address,
+encode_command(safe_add, Name, Data) ->
   BinName = list_to_binary(Name),
-  <<6:8/integer, Port:16, IpA:8, IpB:8, IpC:8, IpD:8, BinName/binary>>;
+  Length = byte_size(BinName),
+  <<5:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
 
-encode_command(safe_delete_reply, Name, Result, no_addr) ->
+encode_command(safe_add_reply, Name, Result) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   BinRes = list_to_binary(Result),
-  <<7:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>.
+  <<6:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>;
+
+encode_command(safe_delete, Name, no_data) ->
+  BinName = list_to_binary(Name),
+  <<7:8/integer, BinName/binary>>;
+
+encode_command(safe_delete_reply, Name, Result) ->
+  BinName = list_to_binary(Name),
+  Length = byte_size(BinName),
+  BinRes = list_to_binary(Result),
+  <<8:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>.
 
 decode_command(add, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -340,24 +342,8 @@ decode_command(add, Msg) ->
   Name = binary_to_list(BinName),
   {Name, Data};
 
-decode_command(safe_add, Msg) ->
-  <<Port:16, IpA:8, IpB:8, IpC:8, IpD:8, Length:8/integer, Rest/binary>> = Msg,
-  <<BinName:Length/binary, Data/binary>> = Rest,
-  Name = binary_to_list(BinName),
-  Address = {Port, {IpA, IpB, IpC, IpD}},
-  {Name, Data, Address};
-
-decode_command(safe_add_reply, Msg) ->
-  <<Length:8/integer, Rest/binary>> = Msg,
-  <<BinName:Length/binary, Result/binary>> = Rest,
-  Name = binary_to_list(BinName),
-  {Name, Result};
-
 decode_command(ask_res, Msg) ->
-  <<Port:16, IpA:8, IpB:8, IpC:8, IpD:8, Message/binary>> = Msg,
-  Name = binary_to_list(Message),
-  Address = {Port, {IpA, IpB, IpC, IpD}},
-  {Name, Address};
+  binary_to_list(Msg);
 
 decode_command(res_reply, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -368,11 +354,20 @@ decode_command(res_reply, Msg) ->
 decode_command(delete, Msg) ->
   binary_to_list(Msg);
 
+decode_command(safe_add, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, Data/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  {Name, Data};
+
+decode_command(safe_add_reply, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, Result/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  {Name, Result};
+
 decode_command(safe_delete, Msg) ->
-  <<Port:16, IpA:8, IpB:8, IpC:8, IpD:8, Message/binary>> = Msg,
-  Name = binary_to_list(Message),
-  Address = {Port, {IpA, IpB, IpC, IpD}},
-  {Name, Address};
+  binary_to_list(Msg);
 
 decode_command(safe_delete_reply, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -382,42 +377,45 @@ decode_command(safe_delete_reply, Msg) ->
 
 handle_msg(add, _From, Params) ->
   {Name, Data} = Params,
-  block_resource_handler:add(Name, Data);
+  ID = application_manager:get_res_id(Name),    %%TODO handle id of resource
+  block_resource_handler:add(Name, ID, Data);
 
-handle_msg(safe_add, _From, Params) ->
-  {Name, Data, Address} = Params,
-  Res = block_resource_handler:add(Name, Data),
-  Msg = encode_command(safe_add_reply, Name, Res, no_addr),
-  send_msg_back_to_address; %TODO send message back
-
-handle_msg(safe_add_reply, From, Params) ->
-  block_r_gateway:send_response(Params, safe_add);
-
-handle_msg(ask_res, From, Params) ->
-  {Name, Address} = Params,
+handle_msg(ask_res, From, Name) ->
   Data = block_resource_handler:get(Name),
-  Msg = encode_command(res_reply, Name, Data, no_addr);     %%TODO send message back with name and data NAMED res_reply
+  Msg = encode_command(res_reply, Name, Data),      %%TODO HANDLE RES ERRORS
+  application_manager:send_response(Msg, From);
 
 handle_msg(res_reply, _From, Params) ->
   block_r_gateway:send_response(Params, ask_res);
 
-handle_msg(delete, From, Name) ->
+handle_msg(delete, _From, Name) ->
   block_resource_handler:delete(Name);
 
-handle_msg(safe_delete, From, Params) ->
-  {Name, Address} = Params,
-  Res = block_resource_handler:delete(Name),
-  Msg = encode_command(safe_delete_reply, Name, Res, no_addr),
-  send_msg_back_to_address; %TODO send message back
+handle_msg(safe_add, From, Params) ->
+  {Name, Data} = Params,
+  Res = block_resource_handler:add(Name, Data),       %%TODO HANDLE RES ERRORS
+  Msg = encode_command(safe_add_reply, Name, Res),
+  application_manager:send_response(Msg, From);
 
-handle_msg(safe_delete_reply, From, Params) ->
-  block_r_gateway:send_response(Params, safe_delete).
+handle_msg(safe_add_reply, _From, Params) ->
+  block_r_gateway:send_response(Params, safe_add);
+
+handle_msg(safe_delete, From, Name) ->
+  Res = block_resource_handler:delete(Name),    %%TODO HANDLE RES ERRORS
+  Msg = encode_command(safe_delete_reply, Name, Res),
+  application_manager:send_response(Msg, From);
+
+handle_msg(safe_delete_reply, _From, Params) ->
+  block_r_gateway:send_response(Params, safe_delete);
+
+handle_msg(drop, _From, From) ->
+  block_resource_handler:drop(From).
 
 translate(1) -> add;
 translate(2) -> ask_res;
 translate(3) -> res_reply;
 translate(4) -> delete;
 translate(5) -> safe_add;
-translate(6) -> safe_delete;
-translate(7) -> safe_delete_reply;
-translate(8) -> safe_add_reply.
+translate(6) -> safe_add_reply;
+translate(7) -> safe_delete;
+translate(8) -> safe_delete_reply.
