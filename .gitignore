@@ -18,6 +18,7 @@ _build
 rebar3.crashdump
 *~
 rebar.lock
+*.log
 
 #file DS_Store
 .DS_Store

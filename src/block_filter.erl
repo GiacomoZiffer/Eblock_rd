@@ -221,6 +221,9 @@ handle_call({drop, From}, _From, State) ->
   handle_msg(drop, no_addr, From),
   {reply, ok, State};
 
+handle_call(get_all, _From, State) ->
+  {reply, [], State};
+
 handle_call(Request, _From, State) ->
   io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
@@ -377,7 +380,7 @@ decode_command(safe_delete_reply, Msg) ->
 
 handle_msg(add, _From, Params) ->
   {Name, Data} = Params,
-  ID = application_manager:get_res_id(Name),    %%TODO handle id of resource
+  ID = application_manager:hash_name(Name),    %%TODO handle id of resource
   block_resource_handler:add(Name, ID, Data);
 
 handle_msg(ask_res, From, Name) ->
