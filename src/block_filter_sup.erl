@@ -66,12 +66,14 @@ init([]) ->
     permanent, 2000, worker, [block_proxy]},
   Son2 = {block_filter, {block_filter, start_link, []},
     permanent, 2000, worker, [block_filter]},
-  Son3 = {block_r_gateway, {block_r_gateway, start_link, []},
+  Son3 = {block_message_handler, {block_message_handler, start_link, []},
+    permanent, 2000, worker, [block_message_handler]},
+  Son4 = {block_r_gateway, {block_r_gateway, start_link, []},
     permanent, 2000, worker, [block_r_gateway]},
-  Son4 = {block_r_sup, {block_r_sup, start_link, []},
+  Son5 = {block_r_sup, {block_r_sup, start_link, []},
     permanent, 2000, supervisor, [block_r_sup]},
 
-  {ok, {SupFlags, [Son1, Son2, Son3, Son4]}}.
+  {ok, {SupFlags, [Son1, Son2, Son3, Son4, Son5]}}.
 
 %%%===================================================================
 %%% Internal functions

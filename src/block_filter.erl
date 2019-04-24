@@ -24,10 +24,12 @@
   pop/1,
   receive_command/2,
   add_many_resources/1,
-  get_local_resources/0,
+  get_local_resources/1,
   drop_many_resources/1,
   safe_add/1,
-  safe_delete/1]).
+  safe_delete/1,
+  send_response/4,
+  get_res_id/1]).
 
 %%TODO remove this export
 -export([encode_command/3, decode_command/2]).
@@ -104,13 +106,20 @@ add_many_resources(Resources) ->
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {add_many, Resources}).
 
-get_local_resources() ->
+get_local_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, get_all).
+  gen_server:call(PID, {get, From}).
 
 drop_many_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {drop, From}).
+
+send_response(Method, Name, Res, To) ->
+  Message = encode_command(Method, Name, Res),
+  application_manager:send_response(Message, To).
+
+get_res_id(Name) ->
+  application_manager:hash_name(Name).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -210,19 +219,20 @@ handle_call({rcv_command, From, Command}, _From, State) ->
   <<NumComm:8/integer, Msg/binary>> = Command,
   Comm = translate(NumComm),
   Params = decode_command(Comm, Msg),
-  handle_msg(Comm, From, Params),
+  block_message_handler:handle_msg(Comm, From, Params),
   {reply, ok, State};
 
 handle_call({add_many, Resources}, _From, State) ->
-  [handle_msg(add, no_addr, Res) || Res <- Resources],
+  %[handle_msg(add, no_addr, Res) || Res <- Resources],
+  lists:map(fun(Res) -> block_message_handler:handle_msg(add, no_addr, Res) end, Resources),  %%TODO check if this works
   {reply, ok, State};
 
 handle_call({drop, From}, _From, State) ->
-  handle_msg(drop, no_addr, From),
+  block_message_handler:handle_msg(drop, no_addr, From),
   {reply, ok, State};
 
-handle_call(get_all, _From, State) ->
-  {reply, [], State};
+handle_call({get, From}, _From, State) ->
+  {reply, [], State};           %%TODO make this case
 
 handle_call(Request, _From, State) ->
   io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
@@ -327,7 +337,7 @@ encode_command(safe_add_reply, Name, Result) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   BinRes = list_to_binary(Result),
-  <<6:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>;
+  <<6:8/integer, Length:8/integer, BinName:Length/binary, BinRes/binary>>;
 
 encode_command(safe_delete, Name, no_data) ->
   BinName = list_to_binary(Name),
@@ -337,7 +347,7 @@ encode_command(safe_delete_reply, Name, Result) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   BinRes = list_to_binary(Result),
-  <<8:8/integer, Length:8/integer, Name:Length/binary, BinRes/binary>>.
+  <<8:8/integer, Length:8/integer, BinName:Length/binary, BinRes/binary>>.
 
 decode_command(add, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -377,42 +387,6 @@ decode_command(safe_delete_reply, Msg) ->
   <<BinName:Length/binary, Result/binary>> = Rest,
   Name = binary_to_list(BinName),
   {Name, Result}.
-
-handle_msg(add, _From, Params) ->
-  {Name, Data} = Params,
-  ID = application_manager:hash_name(Name),    %%TODO handle id of resource
-  block_resource_handler:add(Name, ID, Data);
-
-handle_msg(ask_res, From, Name) ->
-  Data = block_resource_handler:get(Name),
-  Msg = encode_command(res_reply, Name, Data),      %%TODO HANDLE RES ERRORS
-  application_manager:send_response(Msg, From);
-
-handle_msg(res_reply, _From, Params) ->
-  block_r_gateway:send_response(Params, ask_res);
-
-handle_msg(delete, _From, Name) ->
-  block_resource_handler:delete(Name);
-
-handle_msg(safe_add, From, Params) ->
-  {Name, Data} = Params,
-  Res = block_resource_handler:add(Name, Data),       %%TODO HANDLE RES ERRORS
-  Msg = encode_command(safe_add_reply, Name, Res),
-  application_manager:send_response(Msg, From);
-
-handle_msg(safe_add_reply, _From, Params) ->
-  block_r_gateway:send_response(Params, safe_add);
-
-handle_msg(safe_delete, From, Name) ->
-  Res = block_resource_handler:delete(Name),    %%TODO HANDLE RES ERRORS
-  Msg = encode_command(safe_delete_reply, Name, Res),
-  application_manager:send_response(Msg, From);
-
-handle_msg(safe_delete_reply, _From, Params) ->
-  block_r_gateway:send_response(Params, safe_delete);
-
-handle_msg(drop, _From, From) ->
-  block_resource_handler:drop(From).
 
 translate(1) -> add;
 translate(2) -> ask_res;
