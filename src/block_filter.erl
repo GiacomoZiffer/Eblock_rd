@@ -92,11 +92,11 @@ safe_delete(Name) ->
 
 update(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {update, Name}).
+  gen_server:call(PID, {update, Name}).     %%TODO DO THIS CASE
 
 pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {pop, Name}).
+  gen_server:call(PID, {pop, Name}).      %%TODO DO THIS CASE
 
 receive_command(From, Command) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -108,7 +108,7 @@ add_many_resources(Resources) ->
 
 get_local_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {get, From}).
+  gen_server:call(PID, {get_many, From}).
 
 drop_many_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -223,16 +223,16 @@ handle_call({rcv_command, From, Command}, _From, State) ->
   {reply, ok, State};
 
 handle_call({add_many, Resources}, _From, State) ->
-  %[handle_msg(add, no_addr, Res) || Res <- Resources],
-  lists:map(fun(Res) -> block_message_handler:handle_msg(add, no_addr, Res) end, Resources),  %%TODO check if this works
+  block_message_handler:handle_msg(add_many, no_addr, Resources),
   {reply, ok, State};
 
 handle_call({drop, From}, _From, State) ->
   block_message_handler:handle_msg(drop, no_addr, From),
   {reply, ok, State};
 
-handle_call({get, From}, _From, State) ->
-  {reply, [], State};           %%TODO make this case
+handle_call({get_many, ID}, From, State) ->
+  block_message_handler:handle_msg(get_many, From, ID),
+  {noreply, State};
 
 handle_call(Request, _From, State) ->
   io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
@@ -324,6 +324,12 @@ encode_command(res_reply, Name, Data) ->
   Length = byte_size(BinName),
   <<3:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
 
+encode_command(no_res, Name, Reason) ->
+  BinR = list_to_binary(Reason),
+  BinName = list_to_binary(Name),
+  Length = byte_size(BinName),
+  <<9:8/integer, Length:8/integer, BinName:Length/binary, BinR/binary>>;
+
 encode_command(delete, Name, no_data) ->
   BinName = list_to_binary(Name),
   <<4:8/integer, BinName/binary>>;
@@ -364,6 +370,13 @@ decode_command(res_reply, Msg) ->
   Name = binary_to_list(BinName),
   {Name, Data};
 
+decode_command(no_res, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, BinReason/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  Reason = binary_to_list(BinReason),
+  {Name, Reason};
+
 decode_command(delete, Msg) ->
   binary_to_list(Msg);
 
@@ -375,8 +388,9 @@ decode_command(safe_add, Msg) ->
 
 decode_command(safe_add_reply, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
-  <<BinName:Length/binary, Result/binary>> = Rest,
+  <<BinName:Length/binary, BinResult/binary>> = Rest,
   Name = binary_to_list(BinName),
+  Result = binary_to_list(BinResult),
   {Name, Result};
 
 decode_command(safe_delete, Msg) ->
@@ -384,8 +398,9 @@ decode_command(safe_delete, Msg) ->
 
 decode_command(safe_delete_reply, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
-  <<BinName:Length/binary, Result/binary>> = Rest,
+  <<BinName:Length/binary, BinResult/binary>> = Rest,
   Name = binary_to_list(BinName),
+  Result = binary_to_list(BinResult),
   {Name, Result}.
 
 translate(1) -> add;
@@ -395,4 +410,5 @@ translate(4) -> delete;
 translate(5) -> safe_add;
 translate(6) -> safe_add_reply;
 translate(7) -> safe_delete;
-translate(8) -> safe_delete_reply.
+translate(8) -> safe_delete_reply;
+translate(9) -> no_res.

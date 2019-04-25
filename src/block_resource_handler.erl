@@ -18,7 +18,8 @@
   delete/1,
   get_name/1,
   get_data/1,
-  drop/1]).
+  drop/1,
+  get_many/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -71,6 +72,10 @@ get_data(Path) ->
   {ok, Data} = file:read_file(Path),
   Data.
 
+get_many(ID) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {get_many, ID}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -109,23 +114,33 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_call({add, Name, ID, Data}, _From, State) ->
-  %Data = get_data(Path),
   io:format("The size is:~p~n", [byte_size(Data)]),
-  %Name = get_name(Path),
-  {ok, Fd} = file:open("Resources/" ++ Name, [write]), %TODO handle all possible error, maybe with try_/catch
-  file:write(Fd, Data),
-  ResList = State#state.resources,
-  NewList = [{Name, ID} | ResList],
-  {reply, ok, State#state{resources = NewList}};
+  try
+    {ok, Fd} = file:open("Resources/" ++ Name, [write]), %TODO decide which exception to handle and error to return
+    file:write(Fd, Data),
+    file:close(Fd)
+  of
+    _ ->
+      ResList = State#state.resources,
+      NewList = [{Name, ID} | ResList],
+      {reply, ok, State#state{resources = NewList}}
+  catch _:_ ->
+    {reply, error, State}
+  end;
 
 handle_call({get, Name}, _From, State) ->
-  {ok, Data} = file:read_file("Resources/" ++ Name),
-  {reply, Data, State};
+  Response = file:read_file("Resources/" ++ Name),
+  {reply, Response, State};
 
 handle_call({delete, Name}, _From, State) ->
-  ok = file:delete("Resources/" ++ Name),       %TODO handle all possible error, maybe with try_/catch
-  NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
-  {reply, ok, State#state{resources = NewList}};
+  try file:delete("Resources/" ++ Name) of       %TODO decide which exception to handle and error to return
+      ok ->
+        NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
+        {reply, ok, State#state{resources = NewList}}
+  catch
+      _:_  ->
+        {reply, error, State}
+  end;
 
 handle_call({drop, all_res}, _From, State) ->
   ResList = State#state.resources,
@@ -138,8 +153,21 @@ handle_call({drop, From}, _From, State) ->
   NewList = [{N, ID} || {N, ID} <- ResList, ID > From],
   {reply, ok, State#state{resources = NewList}};
 
+handle_call({get_many, ID}, _From, State) ->
+  ResList = State#state.resources,
+  Resources = [{Name, Data} || {Name, ResID} <- ResList, Data <- get_data(Name), ResID =< ID],
+  {reply, Resources, State};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
+
+
+%%TODO THESE COMMENTS ARE JUST FOR TESTING
+%block_filter:add("/Users/Giacomo/Downloads/chord.png").
+%block_filter:add("/Users/Giacomo/Downloads/Accordo_Di_Riservatezza.pdf").
+%block_filter:safe_add("/Users/Giacomo/Downloads/S_160704-FM.doc").
+%block_filter:safe_delete("S_160704-FM.doc").
+%block_filter:get_res("S_160704-FM.doc").
 
 %%--------------------------------------------------------------------
 %% @private

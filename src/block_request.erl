@@ -75,17 +75,25 @@ handle_call(Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({response, Params, ask_res}, State) ->
-  gen_server:reply(State#state.from, {ask_res, Params}), %%TODO MANAGE RESULT OF THE OPERATION
+  {Name, R} = Params,
+  case R of
+    "no_file" -> gen_server:reply(State#state.from, {ask_res, Name, no_file});
+    Data ->
+      {ok, Fd} = file:open("Output/" ++ Name, [write]), %TODO decide which exception to handle and error to return
+      file:write(Fd, Data),
+      file:close(Fd),
+      gen_server:reply(State#state.from, {ask_res, Name, found})
+  end,
   {stop, normal, State};
 
 handle_cast({response, Params, safe_add}, State) ->
   {Name, Result} = Params,
-  gen_server:reply(State#state.from, {Result, Name}),   %%TODO MANAGE RESULT OF THE OPERATION
+  gen_server:reply(State#state.from, {safe_add, Name, list_to_atom(Result)}),
   {stop, normal, State};
 
 handle_cast({response, Params, safe_delete}, State) ->
   {Name, Result} = Params,
-  gen_server:reply(State#state.from, {Result, Name}),   %%TODO MANAGE RESULT OF THE OPERATION
+  gen_server:reply(State#state.from, {safe_delete, Name, list_to_atom(Result)}),
   {stop, normal, State};
 
 handle_cast(Request, State) ->

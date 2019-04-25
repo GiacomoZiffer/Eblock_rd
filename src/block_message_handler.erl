@@ -148,10 +148,17 @@ handle_message(add, _From, Params) ->
   block_resource_handler:add(Name, ID, Data);
 
 handle_message(ask_res, From, Name) ->
-  Data = block_resource_handler:get(Name),    %%TODO HANDLE RES ERRORS
-  block_filter:send_response(res_reply, Name, Data, From);
+  Response = block_resource_handler:get(Name),
+  case Response of
+    {ok, Data} ->
+      block_filter:send_response(res_reply, Name, Data, From);
+    {error, _Reason} -> block_filter:send_response(no_res, Name, atom_to_list(no_file), From) %%TODO decide what to do with Reason
+  end;
 
 handle_message(res_reply, _From, Params) ->
+  block_r_gateway:send_response(Params, ask_res);
+
+handle_message(no_res, _From, Params) ->
   block_r_gateway:send_response(Params, ask_res);
 
 handle_message(delete, _From, Name) ->
@@ -160,18 +167,25 @@ handle_message(delete, _From, Name) ->
 handle_message(safe_add, From, Params) ->
   {Name, Data} = Params,
   ID = block_filter:get_res_id(Name),
-  Result = block_resource_handler:add(Name, ID, Data),       %%TODO HANDLE RES ERRORS
+  Result = block_resource_handler:add(Name, ID, Data),
   block_filter:send_response(safe_add_reply, Name, atom_to_list(Result), From);
 
 handle_message(safe_add_reply, _From, Params) ->
   block_r_gateway:send_response(Params, safe_add);
 
 handle_message(safe_delete, From, Name) ->
-  Result = block_resource_handler:delete(Name),    %%TODO HANDLE RES ERRORS
+  Result = block_resource_handler:delete(Name),
   block_filter:send_response(safe_delete_reply, Name, atom_to_list(Result), From);
 
 handle_message(safe_delete_reply, _From, Params) ->
   block_r_gateway:send_response(Params, safe_delete);
 
 handle_message(drop, _From, From) ->
-  block_resource_handler:drop(From).
+  block_resource_handler:drop(From);
+
+handle_message(add_many, _From, Resources) ->
+  lists:map(fun(Res) -> handle_message(add, no_addr, Res) end, Resources);    %%TODO check if this works
+
+handle_message(get_many, From, ID) ->
+  ResList = block_resource_handler:get_many(ID),
+  gen_server:reply(From, ResList).
