@@ -155,7 +155,7 @@ handle_call({drop, From}, _From, State) ->
 
 handle_call({get_many, ID}, _From, State) ->
   ResList = State#state.resources,
-  Resources = [{Name, Data} || {Name, ResID} <- ResList, Data <- get_data(Name), ResID =< ID],
+  Resources = [{Name, Data} || {Name, ResID} <- ResList, Data <- get_data("Resources/" ++ Name), ResID =< ID],
   {reply, Resources, State};
 
 handle_call(_Request, _From, State) ->

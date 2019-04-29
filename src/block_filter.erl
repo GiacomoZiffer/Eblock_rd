@@ -108,7 +108,7 @@ add_many_resources(Resources) ->
 
 get_local_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {get_many, From}).
+  gen_server:call(PID, {get_many, From}, 10000).          %TODO check if timeout is enough
 
 drop_many_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
