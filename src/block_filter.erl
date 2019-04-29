@@ -20,7 +20,6 @@
   add/1,
   get_res/1,
   delete/1,
-  update/1,
   pop/1,
   receive_command/2,
   add_many_resources/1,
@@ -89,10 +88,6 @@ delete(Name) ->
 safe_delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {safe_delete, Name}).
-
-update(Name) ->
-  PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {update, Name}).     %%TODO DO THIS CASE
 
 pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
