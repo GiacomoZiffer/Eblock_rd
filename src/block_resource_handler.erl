@@ -19,7 +19,8 @@
   get_name/1,
   get_data/1,
   drop/1,
-  get_many/1]).
+  get_many/1,
+  show_res/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -75,6 +76,10 @@ get_data(Path) ->
 get_many(ID) ->
   PID = block_naming_hnd:get_identity(resource_handler),
   gen_server:call(PID, {get_many, ID}).
+
+show_res() ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, show_res).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -157,6 +162,10 @@ handle_call({get_many, ID}, _From, State) ->
   ResList = State#state.resources,
   Resources = [{Name, get_data("Resources/" ++ Name)} || {Name, ResID} <- ResList, ResID =< ID],
   {reply, Resources, State};
+
+handle_call(show_res, _From, State) ->
+  io:format("@@@@@ Resources: @@@@@ ~p~n", [State#state.resources]),
+  {reply, ok, State};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
