@@ -105,6 +105,11 @@ handle_cast({response, Params, safe_delete}, State) ->
   [block_request:respond(PID, Params, safe_delete) || {PID, R, M, _} <- State#state.requests, R =:= Name, M =:= safe_delete],
   {noreply, State};
 
+handle_cast({response, Params, pop}, State) ->
+  {Name, _} = Params,
+  [block_request:respond(PID, Params, pop) || {PID, R, M, _} <- State#state.requests, R =:= Name, M =:= pop],
+  {noreply, State};
+
 handle_cast(Request, State) ->
   io:format("BLOCK GATEWAY: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.

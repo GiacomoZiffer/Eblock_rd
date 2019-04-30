@@ -152,7 +152,7 @@ handle_message(ask_res, From, Name) ->
   case Response of
     {ok, Data} ->
       block_filter:send_response(res_reply, Name, Data, From);
-    {error, _Reason} -> block_filter:send_response(no_res, Name, atom_to_list(no_file), From) %%TODO decide what to do with Reason
+    {error, _Reason} -> block_filter:send_response(no_res, Name, no_data, From)
   end;
 
 handle_message(res_reply, _From, Params) ->
@@ -167,7 +167,7 @@ handle_message(delete, _From, Name) ->
 handle_message(safe_add, From, Params) ->
   {Name, Data} = Params,
   ID = block_filter:get_res_id(Name),
-  Result = block_resource_handler:add(Name, ID, Data),
+  Result = block_resource_handler:safe_add(Name, ID, Data),
   block_filter:send_response(safe_add_reply, Name, atom_to_list(Result), From);
 
 handle_message(safe_add_reply, _From, Params) ->
@@ -188,4 +188,18 @@ handle_message(add_many, _From, Resources) ->
 
 handle_message(get_many, From, ID) ->
   ResList = block_resource_handler:get_many(ID),
-  gen_server:reply(From, ResList).
+  gen_server:reply(From, ResList);
+
+handle_message(pop, From, Name) ->
+  Response = block_resource_handler:get(Name),
+  case Response of
+    {ok, Data} ->
+      block_filter:send_response(pop_reply, Name, Data, From);
+    {error, _Reason} -> block_filter:send_response(no_pop, Name, no_data, From)
+  end;
+
+handle_message(pop_reply, _From, Params) ->
+  block_r_gateway:send_response(Params, pop);
+
+handle_message(no_pop, _From, Params) ->
+  block_r_gateway:send_response(Params, pop).

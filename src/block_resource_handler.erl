@@ -22,7 +22,8 @@
   get_many/1,
   show_res/0,
   notify_path/2,
-  get_path/1]).
+  get_path/1,
+  safe_add/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -54,6 +55,10 @@ start_link() ->
 add(Name, ID, Data) ->
   PID = block_naming_hnd:get_identity(resource_handler),
   gen_server:call(PID, {add, Name, ID, Data}).
+
+safe_add(Name, ID, Data) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {safe_add, Name, ID, Data}).
 
 get(Name) ->
   PID = block_naming_hnd:get_identity(resource_handler),
@@ -131,7 +136,7 @@ init([]) ->
 handle_call({add, Name, ID, Data}, _From, State) ->
   io:format("The size is:~p~n", [byte_size(Data)]),
   try
-    {ok, Fd} = file:open(State#state.res_path ++ Name, [write]), %TODO decide which exception to handle and error to return
+    {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
     file:write(Fd, Data),
     file:close(Fd)
   of
@@ -143,18 +148,30 @@ handle_call({add, Name, ID, Data}, _From, State) ->
     {reply, error, State}
   end;
 
+handle_call({safe_add, Name, ID, Data}, _From, State) ->
+  io:format("The size is:~p~n", [byte_size(Data)]),
+  case file:open(State#state.res_path ++ Name, [exclusive]) of
+    {ok, Fd} ->
+      file:write(Fd, Data),
+      file:close(Fd),
+      ResList = State#state.resources,
+      NewList = [{Name, ID} | ResList],
+      {reply, ok, State#state{resources = NewList}};
+    {error, eexist} ->
+      {reply, existing, State}
+  end;
+
 handle_call({get, Name}, _From, State) ->
   Response = file:read_file(State#state.res_path ++ Name),
   {reply, Response, State};
 
 handle_call({delete, Name}, _From, State) ->
-  try file:delete(State#state.res_path ++ Name) of       %TODO decide which exception to handle and error to return
-      ok ->
-        NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
-        {reply, ok, State#state{resources = NewList}}
-  catch
-      _:_  ->
-        {reply, error, State}
+  case file:delete(State#state.res_path ++ Name) of
+    ok ->
+      NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
+      {reply, ok, State#state{resources = NewList}};
+    {error, _Reason} ->
+      {reply, not_existing, State}
   end;
 
 handle_call({drop, all_res}, _From, State) ->

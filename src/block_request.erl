@@ -80,7 +80,7 @@ handle_cast({response, Params, ask_res}, State) ->
     "no_file" -> gen_server:reply(State#state.from, {ask_res, Name, no_file});
     Data ->
       OutputPath = block_resource_handler:get_path(output),
-      {ok, Fd} = file:open(OutputPath ++ Name, [write]), %TODO decide which exception to handle and error to return
+      {ok, Fd} = file:open(OutputPath ++ Name, [write]),
       file:write(Fd, Data),
       %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
       gen_server:reply(State#state.from, {ask_res, Name, found})
@@ -95,6 +95,20 @@ handle_cast({response, Params, safe_add}, State) ->
 handle_cast({response, Params, safe_delete}, State) ->
   {Name, Result} = Params,
   gen_server:reply(State#state.from, {safe_delete, Name, list_to_atom(Result)}),
+  {stop, normal, State};
+
+handle_cast({response, Params, pop}, State) ->
+  {Name, R} = Params,
+  case R of
+    "no_file" -> gen_server:reply(State#state.from, {pop, Name, no_file});
+    Data ->
+      OutputPath = block_resource_handler:get_path(output),
+      {ok, Fd} = file:open(OutputPath ++ Name, [write]),
+      file:write(Fd, Data),
+      %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
+      block_filter:delete(Name),
+      gen_server:reply(State#state.from, {pop, Name, found})
+  end,
   {stop, normal, State};
 
 handle_cast(Request, State) ->

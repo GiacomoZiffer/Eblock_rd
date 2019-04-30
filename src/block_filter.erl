@@ -103,7 +103,7 @@ safe_delete(Name) ->
 
 pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {pop, Name}).      %%TODO DO THIS CASE
+  gen_server:call(PID, {pop, Name}).
 
 receive_command(From, Command) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -222,13 +222,6 @@ handle_call({safe_delete, Name}, From, State) ->
       {noreply, State}
   end;
 
-handle_call({rcv_command, From, Command}, _From, State) ->
-  <<NumComm:8/integer, Msg/binary>> = Command,
-  Comm = translate(NumComm),
-  Params = decode_command(Comm, Msg),
-  block_message_handler:handle_msg(Comm, From, Params),
-  {reply, ok, State};
-
 handle_call({add_many, Resources}, _From, State) ->
   block_message_handler:handle_msg(add_many, no_addr, Resources),
   {reply, ok, State};
@@ -237,9 +230,27 @@ handle_call({drop, From}, _From, State) ->
   block_message_handler:handle_msg(drop, no_addr, From),
   {reply, ok, State};
 
+handle_call({pop, Name}, From, State) ->
+  Command = encode_command(pop, Name, no_data),
+  Res = application_manager:issue_command(Name, Command),
+  case Res of
+    out_of_network ->
+      {reply, out_of_network, State};
+    _ ->
+      block_r_gateway:add_request(Name, From, pop),
+      {noreply, State}
+  end;
+
 handle_call({get_many, ID}, From, State) ->
   block_message_handler:handle_msg(get_many, From, ID),
   {noreply, State};
+
+handle_call({rcv_command, From, Command}, _From, State) ->
+  <<NumComm:8/integer, Msg/binary>> = Command,
+  Comm = translate(NumComm),
+  Params = decode_command(Comm, Msg),
+  block_message_handler:handle_msg(Comm, From, Params),
+  {reply, ok, State};
 
 handle_call(Request, _From, State) ->
   io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
@@ -331,11 +342,9 @@ encode_command(res_reply, Name, Data) ->
   Length = byte_size(BinName),
   <<3:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
 
-encode_command(no_res, Name, Reason) ->
-  BinR = list_to_binary(Reason),
+encode_command(no_res, Name, no_data) ->
   BinName = list_to_binary(Name),
-  Length = byte_size(BinName),
-  <<9:8/integer, Length:8/integer, BinName:Length/binary, BinR/binary>>;
+  <<9:8/integer, BinName/binary>>;
 
 encode_command(delete, Name, no_data) ->
   BinName = list_to_binary(Name),
@@ -360,7 +369,20 @@ encode_command(safe_delete_reply, Name, Result) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
   BinRes = list_to_binary(Result),
-  <<8:8/integer, Length:8/integer, BinName:Length/binary, BinRes/binary>>.
+  <<8:8/integer, Length:8/integer, BinName:Length/binary, BinRes/binary>>;
+
+encode_command(pop, Name, no_data) ->
+  BinName = list_to_binary(Name),
+  <<10:8/integer, BinName/binary>>;
+
+encode_command(pop_reply, Name, Data) ->
+  BinName = list_to_binary(Name),
+  Length = byte_size(BinName),
+  <<11:8/integer, Length:8/integer, BinName:Length/binary, Data/binary>>;
+
+encode_command(no_pop, Name, no_data) ->
+  BinName = list_to_binary(Name),
+  <<12:8/integer, BinName/binary>>.
 
 decode_command(add, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -378,11 +400,7 @@ decode_command(res_reply, Msg) ->
   {Name, Data};
 
 decode_command(no_res, Msg) ->
-  <<Length:8/integer, Rest/binary>> = Msg,
-  <<BinName:Length/binary, BinReason/binary>> = Rest,
-  Name = binary_to_list(BinName),
-  Reason = binary_to_list(BinReason),
-  {Name, Reason};
+  {binary_to_list(Msg), "no_file"};
 
 decode_command(delete, Msg) ->
   binary_to_list(Msg);
@@ -408,7 +426,19 @@ decode_command(safe_delete_reply, Msg) ->
   <<BinName:Length/binary, BinResult/binary>> = Rest,
   Name = binary_to_list(BinName),
   Result = binary_to_list(BinResult),
-  {Name, Result}.
+  {Name, Result};
+
+decode_command(pop, Msg) ->
+  binary_to_list(Msg);
+
+decode_command(pop_reply, Msg) ->
+  <<Length:8/integer, Rest/binary>> = Msg,
+  <<BinName:Length/binary, Data/binary>> = Rest,
+  Name = binary_to_list(BinName),
+  {Name, Data};
+
+decode_command(no_pop, Msg) ->
+  {binary_to_list(Msg), "no_file"}.
 
 translate(1) -> add;
 translate(2) -> ask_res;
@@ -418,7 +448,10 @@ translate(5) -> safe_add;
 translate(6) -> safe_add_reply;
 translate(7) -> safe_delete;
 translate(8) -> safe_delete_reply;
-translate(9) -> no_res.
+translate(9) -> no_res;
+translate(10) -> pop;
+translate(11) -> pop_reply;
+translate(12) -> no_pop.
 
 create_p([]) -> all_ports_are_already_used;
 
