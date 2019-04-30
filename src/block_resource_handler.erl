@@ -20,7 +20,9 @@
   get_data/1,
   drop/1,
   get_many/1,
-  show_res/0]).
+  show_res/0,
+  notify_path/2,
+  get_path/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -32,7 +34,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {resources}).
+-record(state, {res_path, output_path, resources}).
 
 %%%===================================================================
 %%% API
@@ -81,6 +83,14 @@ show_res() ->
   PID = block_naming_hnd:get_identity(resource_handler),
   gen_server:call(PID, show_res).
 
+notify_path(Type, Path) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {notify_path, Type, Path}).
+
+get_path(Type) ->
+  PID = block_naming_hnd:get_identity(resource_handler),
+  gen_server:call(PID, {get_path, Type}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -121,7 +131,7 @@ init([]) ->
 handle_call({add, Name, ID, Data}, _From, State) ->
   io:format("The size is:~p~n", [byte_size(Data)]),
   try
-    {ok, Fd} = file:open("Resources/" ++ Name, [write]), %TODO decide which exception to handle and error to return
+    {ok, Fd} = file:open(State#state.res_path ++ Name, [write]), %TODO decide which exception to handle and error to return
     file:write(Fd, Data),
     file:close(Fd)
   of
@@ -134,11 +144,11 @@ handle_call({add, Name, ID, Data}, _From, State) ->
   end;
 
 handle_call({get, Name}, _From, State) ->
-  Response = file:read_file("Resources/" ++ Name),
+  Response = file:read_file(State#state.res_path ++ Name),
   {reply, Response, State};
 
 handle_call({delete, Name}, _From, State) ->
-  try file:delete("Resources/" ++ Name) of       %TODO decide which exception to handle and error to return
+  try file:delete(State#state.res_path ++ Name) of       %TODO decide which exception to handle and error to return
       ok ->
         NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
         {reply, ok, State#state{resources = NewList}}
@@ -149,19 +159,36 @@ handle_call({delete, Name}, _From, State) ->
 
 handle_call({drop, all_res}, _From, State) ->
   ResList = State#state.resources,
-  [file:delete("Resources/" ++ Name) || {Name, _} <- ResList],
+  [file:delete(State#state.res_path ++ Name) || {Name, _} <- ResList],
   {reply, ok, State#state{resources = []}};
 
 handle_call({drop, From}, _From, State) ->
   ResList = State#state.resources,
-  [file:delete("Resources/" ++ Name) || {Name, ID} <- ResList, ID =< From],
+  [file:delete(State#state.res_path ++ Name) || {Name, ID} <- ResList, ID =< From],
   NewList = [{N, ID} || {N, ID} <- ResList, ID > From],
   {reply, ok, State#state{resources = NewList}};
 
+handle_call({get_many, all_res}, _From, State) ->
+  ResList = State#state.resources,
+  Resources = [{Name, get_data(State#state.res_path ++ Name)} || {Name, _} <- ResList],
+  {reply, Resources, State};
+
 handle_call({get_many, ID}, _From, State) ->
   ResList = State#state.resources,
-  Resources = [{Name, get_data("Resources/" ++ Name)} || {Name, ResID} <- ResList, ResID =< ID],
+  Resources = [{Name, get_data(State#state.res_path ++ Name)} || {Name, ResID} <- ResList, ResID =< ID],
   {reply, Resources, State};
+
+handle_call({notify_path, res, Path}, _From, State) ->
+  {reply, ok, State#state{res_path = Path}};
+
+handle_call({notify_path, output, Path}, _From, State) ->
+  {reply, ok, State#state{output_path = Path}};
+
+handle_call({get_path, res}, _From, State) ->
+  {reply, State#state.res_path, State};
+
+handle_call({get_path, output}, _From, State) ->
+  {reply, State#state.output_path, State};
 
 handle_call(show_res, _From, State) ->
   io:format("@@@@@ Resources: @@@@@ ~p~n", [State#state.resources]),

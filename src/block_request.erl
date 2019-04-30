@@ -79,7 +79,8 @@ handle_cast({response, Params, ask_res}, State) ->
   case R of
     "no_file" -> gen_server:reply(State#state.from, {ask_res, Name, no_file});
     Data ->
-      {ok, Fd} = file:open("Output/" ++ Name, [write]), %TODO decide which exception to handle and error to return
+      OutputPath = block_resource_handler:get_path(output),
+      {ok, Fd} = file:open(OutputPath ++ Name, [write]), %TODO decide which exception to handle and error to return
       file:write(Fd, Data),
       %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
       gen_server:reply(State#state.from, {ask_res, Name, found})

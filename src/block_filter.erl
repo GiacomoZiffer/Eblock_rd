@@ -61,10 +61,22 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start() ->
-  application_manager:create(8).
+  case application_manager:create(8) of
+    ok ->
+      create_dir(6543);
+    _Error ->
+      Ports = lists:seq(6490,6500),
+      create_p(Ports)
+  end.
 
 start(Address) ->
-  application_manager:join(Address).
+  case application_manager:join(Address) of
+    ok ->
+      create_dir(6543);
+    _Error ->
+      Ports = lists:seq(6490,6500),
+      join_p(Address, Ports)
+  end.
 
 leave() ->
   application_manager:leave().
@@ -407,3 +419,42 @@ translate(6) -> safe_add_reply;
 translate(7) -> safe_delete;
 translate(8) -> safe_delete_reply;
 translate(9) -> no_res.
+
+create_p([]) -> all_ports_are_already_used;
+
+create_p(Ports) ->
+  [Port | Remaining] = Ports,
+  case application_manager:create_p(Port, 8) of
+    ok ->
+      create_dir(Port);
+    _Error ->
+      create_p(Remaining)
+  end.
+
+join_p(_, []) -> all_ports_are_already_used;
+
+join_p(Address, Ports) ->
+  [Port | Remaining] = Ports,
+  case application_manager:join_p(Port, Address) of
+    ok ->
+      create_dir(Port);
+    _Error ->
+      join_p(Address, Remaining)
+  end.
+
+create_dir(Port) ->
+  {ok, Directory} = file:get_cwd(),
+  ResPath = Directory ++ "/" ++ integer_to_list(Port) ++ "_resources",
+  OutputPath = Directory ++ "/" ++ integer_to_list(Port) ++ "_output",
+  case filelib:is_dir(integer_to_list(Port) ++ "_resources") of
+    true -> ok;
+    false ->
+      file:make_dir(ResPath)
+  end,
+  case filelib:is_dir(integer_to_list(Port) ++ "_output") of
+    true -> ok;
+    false ->
+      file:make_dir(OutputPath)
+  end,
+  block_resource_handler:notify_path(res, ResPath ++ "/"),
+  block_resource_handler:notify_path(output, OutputPath ++ "/").
