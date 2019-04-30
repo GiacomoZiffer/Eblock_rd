@@ -81,7 +81,7 @@ handle_cast({response, Params, ask_res}, State) ->
     Data ->
       {ok, Fd} = file:open("Output/" ++ Name, [write]), %TODO decide which exception to handle and error to return
       file:write(Fd, Data),
-      file:close(Fd),
+      %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
       gen_server:reply(State#state.from, {ask_res, Name, found})
   end,
   {stop, normal, State};

@@ -79,7 +79,7 @@ safe_add(Path) ->
 
 get_res(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {ask_res, Name}).
+  gen_server:call(PID, {ask_res, Name}, 10000).       %TODO check if timeout is enough
 
 delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
