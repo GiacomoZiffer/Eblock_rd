@@ -134,7 +134,7 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_call({add, Name, ID, Data}, _From, State) ->
-  io:format("The size is:~p~n", [byte_size(Data)]),
+  io:format("The size is: ~p B~n", [byte_size(Data)]),
   try
     {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
     file:write(Fd, Data),
@@ -150,16 +150,22 @@ handle_call({add, Name, ID, Data}, _From, State) ->
   end;
 
 handle_call({safe_add, Name, ID, Data}, _From, State) ->
-  io:format("The size is:~p~n", [byte_size(Data)]),
+  io:format("The size is: ~p B~n", [byte_size(Data)]),
   case file:open(State#state.res_path ++ Name, [exclusive]) of
     {ok, Fd} ->
-      file:write(Fd, Data),
-      file:close(Fd),
-      ResList = State#state.resources,
-      NewList = [{Name, ID} | ResList],
-      {reply, ok, State#state{resources = NewList}};
-    {error, eexist} ->
-      {reply, existing, State}
+      try
+        file:write(Fd, Data),
+        file:close(Fd)
+      of
+        _ ->
+          ResList = State#state.resources,
+          NewList = [{Name, ID} | ResList],
+          {reply, ok, State#state{resources = NewList}}
+      catch Error ->
+        {reply, Error, State}
+      end;
+    {error, Error} ->
+      {reply, Error, State}
   end;
 
 handle_call({get, Name}, _From, State) ->
@@ -171,8 +177,8 @@ handle_call({delete, Name}, _From, State) ->
     ok ->
       NewList = [{N, ID} || {N, ID} <- State#state.resources, N =/= Name],
       {reply, ok, State#state{resources = NewList}};
-    {error, _Reason} ->
-      {reply, not_existing, State}
+    {error, Reason} ->
+      {reply, Reason, State}
   end;
 
 handle_call({drop, all_res}, _From, State) ->
