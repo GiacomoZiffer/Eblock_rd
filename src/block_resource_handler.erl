@@ -142,7 +142,8 @@ handle_call({add, Name, ID, Data}, _From, State) ->
   of
     _ ->
       ResList = State#state.resources,
-      NewList = [{Name, ID} | ResList],
+      AdjList = [{N, ID} || {N, ID} <- ResList, N =/= Name],
+      NewList = [{Name, ID} | AdjList],
       {reply, ok, State#state{resources = NewList}}
   catch _:_ ->
     {reply, error, State}
