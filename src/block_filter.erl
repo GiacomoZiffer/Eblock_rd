@@ -73,6 +73,8 @@ start(Address) ->
   case application_manager:join(Address) of
     ok ->
       create_dir(6543);
+    {error, econnrefused} ->
+      fail;
     _Error ->
       Ports = lists:seq(6490,6500),
       join_p(Address, Ports)
@@ -471,6 +473,8 @@ join_p(Address, Ports) ->
   case application_manager:join_p(Port, Address) of
     ok ->
       create_dir(Port);
+    {error, econnrefused} ->
+      fail;
     _Error ->
       join_p(Address, Remaining)
   end.
