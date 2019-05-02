@@ -65,8 +65,6 @@ start() ->
     ok ->
       create_dir(6543);
     _Error ->
-      application:stop(echo_rd),
-      application:start(echo_rd),
       Ports = lists:seq(6490,6500),
       create_p(Ports)
   end.
@@ -78,8 +76,6 @@ start(Address) ->
     {error, econnrefused} ->
       fail;
     _Error ->
-      application:stop(echo_rd),
-      application:start(echo_rd),
       Ports = lists:seq(6490,6500),
       join_p(Address, Ports)
   end.
@@ -467,8 +463,6 @@ create_p(Ports) ->
     ok ->
       create_dir(Port);
     _Error ->
-      application:stop(echo_rd),
-      application:start(echo_rd),
       create_p(Remaining)
   end.
 
@@ -482,8 +476,6 @@ join_p(Address, Ports) ->
     {error, econnrefused} ->
       fail;
     _Error ->
-      application:stop(echo_rd),
-      application:start(echo_rd),
       join_p(Address, Remaining)
   end.
 
