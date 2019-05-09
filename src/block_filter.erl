@@ -484,14 +484,20 @@ create_dir(Port) ->
   ResPath = Directory ++ "/" ++ integer_to_list(Port) ++ "_resources",
   OutputPath = Directory ++ "/" ++ integer_to_list(Port) ++ "_output",
   case filelib:is_dir(integer_to_list(Port) ++ "_resources") of
-    true -> ok;
+    true ->
+      clear_directory(ResPath);
     false ->
       file:make_dir(ResPath)
   end,
   case filelib:is_dir(integer_to_list(Port) ++ "_output") of
-    true -> ok;
+    true ->
+      clear_directory(OutputPath);
     false ->
       file:make_dir(OutputPath)
   end,
   block_resource_handler:notify_path(res, ResPath ++ "/"),
   block_resource_handler:notify_path(output, OutputPath ++ "/").
+
+clear_directory(Path) ->
+  {ok, Resources} = file:list_dir(Path),
+  [file:delete(Path ++ "/" ++ Name) || Name <- Resources].

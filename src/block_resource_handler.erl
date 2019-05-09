@@ -134,13 +134,13 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_call({add, Name, ID, Data}, _From, State) ->
-  io:format("The size is: ~p B~n", [byte_size(Data)]),
   try
     {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
     file:write(Fd, Data),
     file:close(Fd)
   of
     _ ->
+      io:format("The size is: ~p B~n", [byte_size(Data)]),
       ResList = State#state.resources,
       AdjList = [{N, ID} || {N, ID} <- ResList, N =/= Name],
       NewList = [{Name, ID} | AdjList],
@@ -150,7 +150,6 @@ handle_call({add, Name, ID, Data}, _From, State) ->
   end;
 
 handle_call({safe_add, Name, ID, Data}, _From, State) ->
-  io:format("The size is: ~p B~n", [byte_size(Data)]),
   case file:open(State#state.res_path ++ Name, [exclusive]) of
     {ok, Fd} ->
       try
@@ -158,6 +157,7 @@ handle_call({safe_add, Name, ID, Data}, _From, State) ->
         file:close(Fd)
       of
         _ ->
+          io:format("The size is: ~p B~n", [byte_size(Data)]),
           ResList = State#state.resources,
           NewList = [{Name, ID} | ResList],
           {reply, ok, State#state{resources = NewList}}
@@ -220,14 +220,6 @@ handle_call(show_res, _From, State) ->
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
-
-
-%%TODO THESE COMMENTS ARE JUST FOR TESTING
-%block_filter:add("/Users/Giacomo/Downloads/chord.png").
-%block_filter:add("/Users/Giacomo/Downloads/Accordo_Di_Riservatezza.pdf").
-%block_filter:safe_add("/Users/Giacomo/Downloads/S_160704-FM.doc").
-%block_filter:safe_delete("S_160704-FM.doc").
-%block_filter:get_res("S_160704-FM.doc").
 
 %%--------------------------------------------------------------------
 %% @private
