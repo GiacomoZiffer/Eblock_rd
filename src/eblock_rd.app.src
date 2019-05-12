@@ -8,7 +8,7 @@
         stdlib,
         echo_rd
       ]},
-    {env,[]},
+    {env,[{starting_port, 6490}, {num_of_ports, 10}]},
     {modules, []},
 
     {licenses, ["Apache 2.0"]},

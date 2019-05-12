@@ -65,7 +65,9 @@ start() ->
     ok ->
       create_dir(6543);
     _Error ->
-      Ports = lists:seq(6490,6500),
+      {ok, FirstPort} = application:get_env(eblock_rd, starting_port),
+      {ok, IntLength} = application:get_env(eblock_rd, num_of_ports),
+      Ports = lists:seq(FirstPort, FirstPort + IntLength),
       create_p(Ports)
   end.
 
@@ -76,7 +78,9 @@ start(Address) ->
     {error, econnrefused} ->
       fail;
     _Error ->
-      Ports = lists:seq(6490,6500),
+      {ok, FirstPort} = application:get_env(eblock_rd, starting_port),
+      {ok, IntLength} = application:get_env(eblock_rd, num_of_ports),
+      Ports = lists:seq(FirstPort, FirstPort + IntLength),
       join_p(Address, Ports)
   end.
 
