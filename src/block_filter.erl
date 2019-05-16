@@ -30,9 +30,6 @@
   send_response/4,
   get_res_id/1]).
 
-%%TODO remove this export
--export([encode_command/3, decode_command/2]).
-
 %% gen_server callbacks
 -export([init/1,
   handle_call/3,

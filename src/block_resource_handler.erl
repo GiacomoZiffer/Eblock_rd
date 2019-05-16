@@ -142,7 +142,7 @@ handle_call({add, Name, ID, Data}, _From, State) ->
     _ ->
       io:format("The size is: ~p B~n", [byte_size(Data)]),
       ResList = State#state.resources,
-      AdjList = [{N, ID} || {N, ID} <- ResList, N =/= Name],
+      AdjList = [{N, ResID} || {N, ResID} <- ResList, N =/= Name],
       NewList = [{Name, ID} | AdjList],
       {reply, ok, State#state{resources = NewList}}
   catch _:_ ->
