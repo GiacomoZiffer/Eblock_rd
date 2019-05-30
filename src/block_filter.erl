@@ -74,8 +74,9 @@ start(Address) ->
       create_dir(6543);
     {error, econnrefused} ->
       fail;
-    Error ->
-      io:format("~p~n", [Error]),
+    {error, timeout} ->
+      address_not_reachable;
+    _Error ->
       {ok, FirstPort} = application:get_env(eblock_rd, starting_port),
       {ok, IntLength} = application:get_env(eblock_rd, num_of_ports),
       Ports = lists:seq(FirstPort, FirstPort + IntLength),
