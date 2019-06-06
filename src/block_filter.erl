@@ -58,7 +58,11 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start() ->
-  case application_manager:create(8) of
+  case application:get_env(eblock_rd, nbits) of
+    undefined -> NBits = 8;
+    Number -> NBits = Number
+  end,
+  case application_manager:create(NBits) of
     ok ->
       create_dir(6543);
     _Error ->
