@@ -96,7 +96,7 @@ safe_add(Path) ->
 
 get_res(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {ask_res, Name}, 10000).       %TODO check if timeout is enough
+  gen_server:call(PID, {ask_res, Name}, 10000).
 
 delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -120,7 +120,7 @@ add_many_resources(Resources) ->
 
 get_local_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {get_many, From}, 10000).          %TODO check if timeout is enough
+  gen_server:call(PID, {get_many, From}, 10000).
 
 drop_many_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
