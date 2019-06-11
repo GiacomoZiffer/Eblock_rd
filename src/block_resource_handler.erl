@@ -140,9 +140,9 @@ handle_call({add, Name, ID, Data}, _From, State) ->
     file:close(Fd)
   of
     _ ->
-      io:format("The size is: ~p B~n", [byte_size(Data)]),
+      io:format("^v^v^v^v^ RESOURCE HANDLER ^v^v^v^v^ The size is: ~p B~n", [byte_size(Data)]),
       ResList = State#state.resources,
-      AdjList = [{N, ID} || {N, ID} <- ResList, N =/= Name],
+      AdjList = [{N, ResID} || {N, ResID} <- ResList, N =/= Name],
       NewList = [{Name, ID} | AdjList],
       {reply, ok, State#state{resources = NewList}}
   catch _:_ ->
@@ -157,7 +157,7 @@ handle_call({safe_add, Name, ID, Data}, _From, State) ->
         file:close(Fd)
       of
         _ ->
-          io:format("The size is: ~p B~n", [byte_size(Data)]),
+          io:format("^v^v^v^v^ RESOURCE HANDLER ^v^v^v^v^ The size is: ~p B~n", [byte_size(Data)]),
           ResList = State#state.resources,
           NewList = [{Name, ID} | ResList],
           {reply, ok, State#state{resources = NewList}}

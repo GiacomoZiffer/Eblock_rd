@@ -25,9 +25,8 @@
 
 notify_identity(PID, Identity) ->
   try
-    io:format("BLOCK --- === NEW ENTRY === Name:~p ===~n", [Identity]),   %TODO remove this line
     Naming = get_identity(block_naming_hnd),
-    gen_server:call(Naming, {notify, Identity, PID})          %TODO check if timeout is needed
+    gen_server:call(Naming, {notify, Identity, PID})
   of
     A -> A
   catch
@@ -56,7 +55,7 @@ get_maybe_identity(Identity) ->
 
 delete_comm_tree() ->
   Naming = get_identity(block_naming_hnd),
-  gen_server:call(Naming, delete).          %TODO check if timeout is needed
+  gen_server:call(Naming, delete).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -100,7 +99,7 @@ handle_call(delete, _From, State) ->
   {reply, ok, State};
 
 handle_call({reheir, NewManager}, _From, State) ->
-  io:format("BLOCK --- Naming Handler: Changing Heir options ~n"),        %TODO remove this line
+  io:format("BLOCK --- Naming Handler: Changing Heir options ~n"),
   ets:setopts(block_naming_db, {heir, NewManager, block_naming_db}),
   {reply, ok, State};
 
@@ -131,7 +130,7 @@ handle_cast(Request, State) ->
 %%--------------------------------------------------------------------
 handle_info({'ETS-TRANSFER', TableId, Pid, _Data}, State) ->
   ets:insert(block_naming_db, {block_naming_hnd, self()}),
-  io:format("BLOCK --- Manager(~p) -> Handler(~p) getting TableId: ~p~n", [Pid, self(), TableId]),        %TODO remove this line
+  io:format("BLOCK --- Manager(~p) -> Handler(~p) getting TableId: ~p~n", [Pid, self(), TableId]),
   {noreply, State};
 
 handle_info(Info, State) ->

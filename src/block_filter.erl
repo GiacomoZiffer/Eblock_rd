@@ -30,9 +30,6 @@
   send_response/4,
   get_res_id/1]).
 
-%%TODO remove this export
--export([encode_command/3, decode_command/2]).
-
 %% gen_server callbacks
 -export([init/1,
   handle_call/3,
@@ -42,6 +39,9 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
+
+-define(MIN_INTERVAL, 10000).
+-define(MULT, 5).
 
 -record(state, {}).
 
@@ -61,7 +61,11 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start() ->
-  case application_manager:create(8) of
+  case application:get_env(eblock_rd, nbits) of
+    undefined -> NBits = 8;
+    Number -> NBits = Number
+  end,
+  case application_manager:create(NBits) of
     ok ->
       create_dir(6543);
     _Error ->
@@ -91,27 +95,33 @@ leave() ->
 
 add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {add, Path}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {add, Path}, Timeout).
 
 safe_add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {safe_add, Path}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {safe_add, Path}, Timeout).
 
 get_res(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {ask_res, Name}, 10000).       %TODO check if timeout is enough
+  Timeout = get_timeout(),
+  gen_server:call(PID, {ask_res, Name}, Timeout).
 
 delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {delete, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {delete, Name}, Timeout).
 
 safe_delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {safe_delete, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {safe_delete, Name}, Timeout).
 
 pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {pop, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {pop, Name}, Timeout).
 
 receive_command(From, Command) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -123,7 +133,7 @@ add_many_resources(Resources) ->
 
 get_local_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {get_many, From}, 10000).          %TODO check if timeout is enough
+  gen_server:call(PID, {get_many, From}, 10000).
 
 drop_many_resources(From) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -507,3 +517,7 @@ create_dir(Port) ->
 clear_directory(Path) ->
   {ok, Resources} = file:list_dir(Path),
   [file:delete(Path ++ "/" ++ Name) || Name <- Resources].
+
+get_timeout() ->
+  Time = application_manager:get_average_lookup_time(),
+  max(Time*?MULT, ?MIN_INTERVAL).
