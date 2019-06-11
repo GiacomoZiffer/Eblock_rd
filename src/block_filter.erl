@@ -40,6 +40,9 @@
 
 -define(SERVER, ?MODULE).
 
+-define(MIN_INTERVAL, 10000).
+-define(MULT, 5).
+
 -record(state, {}).
 
 %%%===================================================================
@@ -92,27 +95,33 @@ leave() ->
 
 add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {add, Path}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {add, Path}, Timeout).
 
 safe_add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {safe_add, Path}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {safe_add, Path}, Timeout).
 
 get_res(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {ask_res, Name}, 10000).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {ask_res, Name}, Timeout).
 
 delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {delete, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {delete, Name}, Timeout).
 
 safe_delete(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {safe_delete, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {safe_delete, Name}, Timeout).
 
 pop(Name) ->
   PID = block_naming_hnd:get_identity(filter),
-  gen_server:call(PID, {pop, Name}).
+  Timeout = get_timeout(),
+  gen_server:call(PID, {pop, Name}, Timeout).
 
 receive_command(From, Command) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -508,3 +517,7 @@ create_dir(Port) ->
 clear_directory(Path) ->
   {ok, Resources} = file:list_dir(Path),
   [file:delete(Path ++ "/" ++ Name) || Name <- Resources].
+
+get_timeout() ->
+  Time = application_manager:get_average_lookup_time(),
+  max(Time*?MULT, ?MIN_INTERVAL).
