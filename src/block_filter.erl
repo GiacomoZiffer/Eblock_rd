@@ -79,8 +79,12 @@ start(Address) ->
   case application_manager:join(Address) of
     ok ->
       create_dir(6543);
-    {error, econnrefused} ->
+    fail ->
       fail;
+    used_id ->
+      used_id;
+    {error, econnrefused} ->
+      connection_refused;
     {error, timeout} ->
       address_not_reachable;
     _Error ->
@@ -489,8 +493,14 @@ join_p(Address, Ports) ->
   case application_manager:join_p(Port, Address) of
     ok ->
       create_dir(Port);
-    {error, econnrefused} ->
+    fail ->
       fail;
+    used_id ->
+      used_id;
+    {error, econnrefused} ->
+      connection_refused;
+    {error, timeout} ->
+      address_not_reachable;
     _Error ->
       join_p(Address, Remaining)
   end.
