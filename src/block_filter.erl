@@ -1,11 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @author Giacomo
-%%% @copyright (C) 2019, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 13. Apr 2019 19:48
-%%%-------------------------------------------------------------------
 -module(block_filter).
 -author("Giacomo").
 
@@ -21,14 +13,16 @@
   get_res/1,
   delete/1,
   pop/1,
-  receive_command/2,
-  add_many_resources/1,
-  get_local_resources/1,
-  drop_many_resources/1,
   safe_add/1,
   safe_delete/1,
   send_response/4,
   get_res_id/1]).
+
+%% gen_bm callbacks
+-export([receive_command/2,
+  add_many_resources/1,
+  get_local_resources/1,
+  drop_many_resources/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -39,7 +33,6 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
-
 -define(MIN_INTERVAL, 10000).
 -define(MULT, 5).
 
@@ -48,17 +41,6 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(start_link() ->
-  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start() ->
   case application:get_env(eblock_rd, nbits) of
@@ -150,43 +132,20 @@ send_response(Method, Name, Res, To) ->
 get_res_id(Name) ->
   application_manager:hash_name(Name).
 
+
+start_link() ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Initializes the server
-%%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
-%% @end
-%%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term()} | ignore).
 init([]) ->
   self() ! startup,
   {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling call messages
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
-    State :: #state{}) ->
-  {reply, Reply :: term(), NewState :: #state{}} |
-  {reply, Reply :: term(), NewState :: #state{}, timeout() | hibernate} |
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_call({add, Path}, _From, State) ->
   Name = block_resource_handler:get_name(Path),
   Data = block_resource_handler:get_data(Path),
@@ -278,35 +237,12 @@ handle_call(Request, _From, State) ->
   io:format("BLOCK FILTER: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_cast(Request :: term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_cast(Request, State) ->
   io:format("BLOCK FILTER: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_info(startup, State) ->
   naming_handler:wait_service(application_manager),
   block_naming_hnd:notify_identity(self(), filter),
@@ -317,39 +253,18 @@ handle_info(Info, State) ->
   io:format("BLOCK FILTER: Unexpected ! message: ~p~n", [Info]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
--spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: #state{}) -> term()).
+
 terminate(_Reason, _State) ->
   ok.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
--spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
-    Extra :: term()) ->
-  {ok, NewState :: #state{}} | {error, Reason :: term()}).
+
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
 encode_command(add, Name, Data) ->
   BinName = list_to_binary(Name),
   Length = byte_size(BinName),
@@ -405,6 +320,7 @@ encode_command(pop_reply, Name, Data) ->
 encode_command(no_pop, Name, no_data) ->
   BinName = list_to_binary(Name),
   <<12:8/integer, BinName/binary>>.
+
 
 decode_command(add, Msg) ->
   <<Length:8/integer, Rest/binary>> = Msg,
@@ -462,6 +378,7 @@ decode_command(pop_reply, Msg) ->
 decode_command(no_pop, Msg) ->
   {binary_to_list(Msg), "no_file"}.
 
+
 translate(1) -> add;
 translate(2) -> ask_res;
 translate(3) -> res_reply;
@@ -475,6 +392,7 @@ translate(10) -> pop;
 translate(11) -> pop_reply;
 translate(12) -> no_pop.
 
+
 create_p([]) -> all_ports_are_already_used;
 
 create_p(Ports) ->
@@ -485,6 +403,7 @@ create_p(Ports) ->
     _Error ->
       create_p(Remaining)
   end.
+
 
 join_p(_, []) -> all_ports_are_already_used;
 
@@ -505,6 +424,7 @@ join_p(Address, Ports) ->
       join_p(Address, Remaining)
   end.
 
+
 create_dir(Port) ->
   {ok, Directory} = file:get_cwd(),
   ResPath = Directory ++ "/" ++ integer_to_list(Port) ++ "_resources",
@@ -524,9 +444,11 @@ create_dir(Port) ->
   block_resource_handler:notify_path(res, ResPath ++ "/"),
   block_resource_handler:notify_path(output, OutputPath ++ "/").
 
+
 clear_directory(Path) ->
   {ok, Resources} = file:list_dir(Path),
   [file:delete(Path ++ "/" ++ Name) || Name <- Resources].
+
 
 get_timeout() ->
   Time = application_manager:get_average_lookup_time(),
