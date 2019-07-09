@@ -77,34 +77,43 @@ start(Address) ->
   end.
 
 leave() ->
-  application_manager:leave().
+  application_manager:leave(),
+  block_resource_handler:notify_path(res, undefined),
+  block_resource_handler:notify_path(output, undefined),
+  block_naming_hnd:delete(path_ready).
 
 add(Path) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {add, Path}, Timeout).
 
 safe_add(Path) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {safe_add, Path}, Timeout).
 
 get_res(Name) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {ask_res, Name}, Timeout).
 
 delete(Name) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {delete, Name}, Timeout).
 
 safe_delete(Name) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {safe_delete, Name}, Timeout).
 
 pop(Name) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   Timeout = get_timeout(),
   gen_server:call(PID, {pop, Name}, Timeout).
@@ -114,14 +123,17 @@ receive_command(From, Command) ->
   gen_server:call(PID, {rcv_command, From, Command}).
 
 add_many_resources(Resources) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {add_many, Resources}).
 
 get_local_resources(From) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {get_many, From}, 10000).
 
 drop_many_resources(From) ->
+  block_naming_hnd:wait_service(path_ready),
   PID = block_naming_hnd:get_identity(filter),
   gen_server:call(PID, {drop, From}).
 
@@ -442,7 +454,8 @@ create_dir(Port) ->
       file:make_dir(OutputPath)
   end,
   block_resource_handler:notify_path(res, ResPath ++ "/"),
-  block_resource_handler:notify_path(output, OutputPath ++ "/").
+  block_resource_handler:notify_path(output, OutputPath ++ "/"),
+  block_naming_hnd:notify_identity(path_ready, ok).
 
 
 clear_directory(Path) ->
