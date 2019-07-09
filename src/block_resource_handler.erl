@@ -93,8 +93,7 @@ handle_call({add, Name, ID, Data}, _From, State) ->
   try
     {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
     file:write(Fd, Data),
-    file:close(Fd),
-    file:datasync(Fd)
+    file:close(Fd)
     %io:format("The output is: ~p~n", [file:write_file(State#state.res_path ++ Name, Data)])
   of
     _ ->

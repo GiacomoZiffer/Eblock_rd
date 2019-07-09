@@ -72,6 +72,8 @@ code_change(_OldVsn, State, _Extra) ->
 handle_message(add, _From, Params) ->
   {Name, Data} = Params,
   ID = block_filter:get_res_id(Name),
+  {ok, Fd} = file:open(block_resource_handler:get_path(res) ++ Name, [write]),
+  file:close(Fd),
   block_resource_handler:add(Name, ID, Data);
 
 handle_message(ask_res, From, Name) ->
