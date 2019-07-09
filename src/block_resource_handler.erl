@@ -91,7 +91,7 @@ init([]) ->
 
 handle_call({add, Name, ID, Data}, _From, State) ->
   try
-    io:format("The filename is: ~p~n", [(State#state.res_path ++ Name]),
+    io:format("The filename is: ~p~n", [State#state.res_path ++ Name]),
     {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
     file:write(Fd, Data),
     file:close(Fd)
