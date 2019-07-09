@@ -45,9 +45,7 @@ handle_call(Request, _From, State) ->
 
 
 handle_cast({handle, Comm, From, Params}, State) ->
-  io:format("Before wait service for path~n"),
   block_naming_hnd:wait_service(path_ready),
-  io:format("After wait service for path~n"),
   handle_message(Comm, From, Params),
   {noreply, State};
 
