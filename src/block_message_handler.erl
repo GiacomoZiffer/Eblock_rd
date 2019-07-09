@@ -45,7 +45,6 @@ handle_call(Request, _From, State) ->
 
 
 handle_cast({handle, Comm, From, Params}, State) ->
-  block_naming_hnd:wait_service(path_ready),
   handle_message(Comm, From, Params),
   {noreply, State};
 
@@ -114,6 +113,7 @@ handle_message(drop, _From, From) ->
   block_resource_handler:drop(From);
 
 handle_message(add_many, _From, Resources) ->
+  block_naming_hnd:wait_service(path_ready),
   lists:map(fun(Res) -> handle_message(add, no_addr, Res) end, Resources);
 
 handle_message(get_many, From, ID) ->
