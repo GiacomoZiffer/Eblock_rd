@@ -5,7 +5,7 @@
 
 %% API
 -export([start_link/0, notify_identity/2, get_identity/1, wait_service/1,
-  get_maybe_identity/1, reheir/2, delete_comm_tree/0]).
+  get_maybe_identity/1, reheir/2, delete/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -53,10 +53,9 @@ get_maybe_identity(Identity) ->
     error:badarg -> no_name_registered
   end.
 
-delete_comm_tree() ->
+delete(Identity) ->
   Naming = get_identity(block_naming_hnd),
-  gen_server:call(Naming, delete).
-
+  gen_server:call(Naming, {delete, Identity}).
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
@@ -73,7 +72,8 @@ handle_call({notify, Identity, PID}, _From, State) ->
   ets:insert(block_naming_db, {Identity, PID}),
   {reply, ok, State};
 
-handle_call(delete, _From, State) ->
+handle_call({delete, Identity}, _From, State) ->
+  ets:delete(block_naming_db, Identity),
   {reply, ok, State};
 
 handle_call({reheir, NewManager}, _From, State) ->

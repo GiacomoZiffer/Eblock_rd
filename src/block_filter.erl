@@ -77,7 +77,10 @@ start(Address) ->
   end.
 
 leave() ->
-  application_manager:leave().
+  application_manager:leave(),
+  block_resource_handler:notify_path(res, undefined),
+  block_resource_handler:notify_path(output, undefined),
+  block_naming_hnd:delete(path_ready).
 
 add(Path) ->
   PID = block_naming_hnd:get_identity(filter),
@@ -442,7 +445,8 @@ create_dir(Port) ->
       file:make_dir(OutputPath)
   end,
   block_resource_handler:notify_path(res, ResPath ++ "/"),
-  block_resource_handler:notify_path(output, OutputPath ++ "/").
+  block_resource_handler:notify_path(output, OutputPath ++ "/"),
+  block_naming_hnd:notify_identity(ok, path_ready).
 
 
 clear_directory(Path) ->

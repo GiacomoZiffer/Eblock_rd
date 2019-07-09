@@ -45,6 +45,7 @@ handle_call(Request, _From, State) ->
 
 
 handle_cast({handle, Comm, From, Params}, State) ->
+  block_naming_hnd:wait_service(path_ready),
   handle_message(Comm, From, Params),
   {noreply, State};
 
@@ -72,6 +73,8 @@ code_change(_OldVsn, State, _Extra) ->
 handle_message(add, _From, Params) ->
   {Name, Data} = Params,
   ID = block_filter:get_res_id(Name),
+  {ok, Fd} = file:open(block_resource_handler:get_path(res) ++ Name, [write]),
+  file:close(Fd),
   block_resource_handler:add(Name, ID, Data);
 
 handle_message(ask_res, From, Name) ->
