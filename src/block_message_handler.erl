@@ -45,6 +45,7 @@ handle_call(Request, _From, State) ->
 
 
 handle_cast({handle, Comm, From, Params}, State) ->
+  block_naming_hnd:wait_service(path_ready),
   handle_message(Comm, From, Params),
   {noreply, State};
 
