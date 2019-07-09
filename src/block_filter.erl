@@ -446,7 +446,7 @@ create_dir(Port) ->
   end,
   block_resource_handler:notify_path(res, ResPath ++ "/"),
   block_resource_handler:notify_path(output, OutputPath ++ "/"),
-  block_naming_hnd:notify_identity(path_ready, ok).
+  block_naming_hnd:notify_identity(ok, path_ready).
 
 
 clear_directory(Path) ->
