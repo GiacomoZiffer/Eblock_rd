@@ -157,7 +157,7 @@ handle_call({get_many, all_res}, _From, State) ->
 handle_call({get_many, ID}, _From, State) ->
   ResList = State#state.resources,
   Resources = [{Name, get_data(State#state.res_path ++ Name)} || {Name, ResID} <- ResList, ResID =< ID],
-  io:format("Name of resources: ~p~n", [Name || {Name, _} <- Resources]),
+  io:format("Name of resources: ~p~n", [[Name || {Name, _} <- Resources]]),
   {reply, Resources, State};
 
 handle_call({notify_path, res, Path}, _From, State) ->
