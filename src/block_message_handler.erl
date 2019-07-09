@@ -111,7 +111,7 @@ handle_message(drop, _From, From) ->
   block_resource_handler:drop(From);
 
 handle_message(add_many, _From, Resources) ->
-  lists:map(fun(Res) -> handle_message(add, no_addr, Res) end, Resources);
+  lists:map(fun(Res) -> handle_message(add, no_addr, Res), handle_message(add, no_addr, Res) end, Resources);
 
 handle_message(get_many, From, ID) ->
   ResList = block_resource_handler:get_many(ID),
