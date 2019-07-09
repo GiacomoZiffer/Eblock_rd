@@ -113,7 +113,9 @@ handle_message(drop, _From, From) ->
   block_resource_handler:drop(From);
 
 handle_message(add_many, _From, Resources) ->
+  io:format("Before wait service for path~n"),
   block_naming_hnd:wait_service(path_ready),
+  io:format("After wait service for path~n"),
   lists:map(fun(Res) -> handle_message(add, no_addr, Res) end, Resources);
 
 handle_message(get_many, From, ID) ->
