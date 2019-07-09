@@ -91,9 +91,10 @@ init([]) ->
 
 handle_call({add, Name, ID, Data}, _From, State) ->
   try
+    io:format("The filename is: ~p~n", [(State#state.res_path ++ Name]),
     {ok, Fd} = file:open(State#state.res_path ++ Name, [write]),
-    io:format("The output of the write is: ~p~n", [file:write(Fd, Data)]),
-    io:format("The output of the close is: ~p~n", [file:close(Fd)])
+    file:write(Fd, Data),
+    file:close(Fd)
   of
     _ ->
       io:format("^v^v^v^v^ RESOURCE HANDLER ^v^v^v^v^ The size is: ~p B~n", [byte_size(Data)]),
