@@ -23,57 +23,29 @@
 %%% API
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @end
-%%--------------------------------------------------------------------
-start_link(Requested, From, List) ->
-  gen_server:start_link(?MODULE, [Requested, From, List], []).
-
 respond(PID, Params, Method) ->
   gen_server:cast(PID, {response, Params, Method}).
+
+
+start_link(Requested, From, List) ->
+  gen_server:start_link(?MODULE, [Requested, From, List], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Initializes the server
-%%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
-%% @end
-%%--------------------------------------------------------------------
 init([Requested, From, Method]) ->
   {ok, #state{requested = Requested, from = From, method = Method}};
 
 init(_) ->
   {stop, badarg}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling call messages
-%%
-%% @end
-%%--------------------------------------------------------------------
+
 handle_call(Request, _From, State) ->
   io:format("BLOCK REQUEST: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @end
-%%--------------------------------------------------------------------
+
 handle_cast({response, Params, ask_res}, State) ->
   {Name, R} = Params,
   case R of
@@ -82,7 +54,6 @@ handle_cast({response, Params, ask_res}, State) ->
       OutputPath = block_resource_handler:get_path(output),
       {ok, Fd} = file:open(OutputPath ++ Name, [write]),
       file:write(Fd, Data),
-      %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
       gen_server:reply(State#state.from, {ask_res, Name, found})
   end,
   {stop, normal, State};
@@ -105,7 +76,6 @@ handle_cast({response, Params, pop}, State) ->
       OutputPath = block_resource_handler:get_path(output),
       {ok, Fd} = file:open(OutputPath ++ Name, [write]),
       file:write(Fd, Data),
-      %file:close(Fd),            %This line is not needed because the resource is release upon the death of the process
       block_filter:delete(Name),
       gen_server:reply(State#state.from, {pop, Name, found})
   end,
@@ -115,42 +85,16 @@ handle_cast(Request, State) ->
   io:format("BLOCK REQUEST: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
+
 handle_info(Info, State) ->
   io:format("BLOCK REQUEST: Unexpected ! message: ~p~n", [Info]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
+
 terminate(_Reason, _State) ->
   ok.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
+
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 

@@ -29,12 +29,7 @@ wait_for_handler() ->
     Pid -> Pid
   end.
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @end
-%%--------------------------------------------------------------------
+
 start_link(Supervisor) ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [Supervisor], []).
 
@@ -42,58 +37,26 @@ start_link(Supervisor) ->
 %%% gen_server callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Initializes the server
-%%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
-%% @end
-%%--------------------------------------------------------------------
 init([Supervisor]) ->
   case whereis(block_naming_hnd) of
     undefined ->
       self() ! {startup, Supervisor};
     Pid  ->
-      blcok_naming_hnd:reheir(Pid, self())
+      block_naming_hnd:reheir(Pid, self())
   end,
   {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling call messages
-%%
-%% @end
-%%--------------------------------------------------------------------
+
 handle_call(Request, _From, State) ->
   io:format("BLOCK --- NAMING MANAGER: Unexpected call message: ~p~n", [Request]),
   {reply, ok, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @end
-%%--------------------------------------------------------------------
+
 handle_cast(Request, State) ->
   io:format("BLOCK --- NAMING MANAGER: Unexpected cast message: ~p~n", [Request]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
+
 handle_info({startup, Supervisor}, State) ->
   ETSHandler = {block_naming_hnd, {block_naming_hnd, start_link, []},
     permanent, 2000, worker, [block_naming_hnd]},
@@ -120,28 +83,11 @@ handle_info(Info, State) ->
   io:format("BLOCK --- NAMING MANAGER: Unexpected ! message: ~p~n", [Info]),
   {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
+
 terminate(_Reason, _State) ->
   ok.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
+
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
